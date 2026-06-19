@@ -1,0 +1,164 @@
+<?php
+
+namespace App\Models;
+
+use App\Models\Concerns\FormatsCurrency;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class Product extends Model
+{
+    use FormatsCurrency, HasFactory;
+
+    protected $fillable = [
+        'merchant_id',
+        'category_id',
+        'brand_id',
+        'name',
+        'slug',
+        'sku',
+        'description',
+        'short_description',
+        'thumbnail',
+        'status',
+        'is_featured',
+        'warranty',
+        'tags',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_featured' => 'boolean',
+            'tags' => 'array',
+        ];
+    }
+
+    public function merchant(): BelongsTo
+    {
+        return $this->belongsTo(Merchant::class);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(Category::class);
+    }
+
+    public function brand(): BelongsTo
+    {
+        return $this->belongsTo(Brand::class);
+    }
+
+    public function images(): HasMany
+    {
+        return $this->hasMany(ProductImage::class)->orderBy('sort_order');
+    }
+
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ProductVariant::class);
+    }
+
+    public function defaultVariant()
+    {
+        return $this->hasOne(ProductVariant::class)->where('status', 'active')->oldest();
+    }
+
+    public function attributes(): HasMany
+    {
+        return $this->hasMany(ProductAttribute::class);
+    }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(ProductReview::class);
+    }
+
+    public function wishlists(): HasMany
+    {
+        return $this->hasMany(Wishlist::class);
+    }
+
+    public function cartItems(): HasMany
+    {
+        return $this->hasMany(CartItem::class);
+    }
+
+    public function orderItems(): HasMany
+    {
+        return $this->hasMany(OrderItem::class);
+    }
+
+    public function flashSaleProducts(): HasMany
+    {
+        return $this->hasMany(FlashSaleProduct::class);
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'active');
+    }
+
+    public function scopeFeatured($query)
+    {
+        return $query->where('is_featured', true);
+    }
+
+    public function scopeInStock($query)
+    {
+        return $query->whereHas('variants', fn ($q) => $q->where('stock', '>', 0)->where('status', 'active'));
+    }
+
+    public function scopeForMerchant($query, int $merchantId)
+    {
+        return $query->where('merchant_id', $merchantId);
+    }
+
+    public function getPriceAttribute(): float
+    {
+        $variant = $this->relationLoaded('defaultVariant')
+            ? $this->defaultVariant
+            : $this->variants()->where('status', 'active')->orderBy('id')->first();
+
+        return (float) ($variant?->price ?? 0);
+    }
+
+    public function getComparePriceAttribute(): ?float
+    {
+        $variant = $this->relationLoaded('defaultVariant')
+            ? $this->defaultVariant
+            : $this->variants()->where('status', 'active')->orderBy('id')->first();
+
+        return $variant?->compare_price ? (float) $variant->compare_price : null;
+    }
+
+    public function getFormattedPriceAttribute(): string
+    {
+        return $this->formatCurrency($this->price);
+    }
+
+    public function getDiscountPercentAttribute(): ?int
+    {
+        return $this->calculateDiscountPercent($this->price, $this->compare_price);
+    }
+
+    public function getDiscountPercentageAttribute(): ?int
+    {
+        return $this->discount_percent;
+    }
+
+    public function getPrimaryImageUrlAttribute(): ?string
+    {
+        if ($this->thumbnail) {
+            return asset('storage/'.$this->thumbnail);
+        }
+
+        $image = $this->relationLoaded('images')
+            ? $this->images->first()
+            : $this->images()->orderBy('sort_order')->first();
+
+        return $image ? asset('storage/'.$image->image_path) : null;
+    }
+}
