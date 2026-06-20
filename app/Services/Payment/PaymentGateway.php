@@ -3,30 +3,29 @@
 namespace App\Services\Payment;
 
 use App\Enums\PaymentMethod;
-use App\Enums\PaymentStatus;
 use App\Models\Order;
-use App\Models\Payment;
+use App\Models\PaymentTransaction;
 use App\Models\User;
 use Illuminate\Support\Str;
 
 abstract class PaymentGateway
 {
-    abstract public function initiate(Order $order, User $user): array;
+    abstract public function initiate(Order $order, User $user, ?string $reference = null, array $options = []): array;
 
-    abstract public function verify(array $payload): Payment;
+    abstract public function verify(array $payload): PaymentTransaction;
 
     abstract public function method(): PaymentMethod;
 
-    protected function createPaymentRecord(Order $order, User $user, string $transactionId): Payment
+    protected function createPaymentRecord(Order $order, User $user, string $transactionId): PaymentTransaction
     {
-        return Payment::query()->create([
+        return PaymentTransaction::query()->create([
             'order_id' => $order->id,
             'user_id' => $user->id,
             'transaction_id' => $transactionId,
-            'gateway' => $this->method()->value,
-            'status' => PaymentStatus::Processing,
+            'method' => $this->method()->value,
+            'status' => 'processing',
             'amount' => $order->total,
-            'currency' => 'BDT',
+            'gateway_response' => [],
         ]);
     }
 

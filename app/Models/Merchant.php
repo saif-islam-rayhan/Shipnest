@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Merchant extends Model
 {
@@ -78,6 +79,18 @@ class Merchant extends Model
     public function orderItems(): HasMany
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function orders(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            Order::class,
+            OrderItem::class,
+            'merchant_id',
+            'id',
+            'id',
+            'order_id',
+        )->distinct();
     }
 
     public function wallet(): \Illuminate\Database\Eloquent\Relations\HasOne

@@ -16,9 +16,25 @@ class CheckoutRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'address_id' => ['required', 'integer', Rule::exists('addresses', 'id')->where('user_id', $this->user()->id)],
+            'address_id' => [
+                'required_without:new_address.recipient_name',
+                'nullable',
+                'integer',
+                Rule::exists('user_addresses', 'id')->where('user_id', $this->user()->id),
+            ],
+            'new_address.recipient_name' => ['required_without:address_id', 'nullable', 'string', 'max:255'],
+            'new_address.phone' => ['required_without:address_id', 'nullable', 'string', 'max:20'],
+            'new_address.address_line1' => ['required_without:address_id', 'nullable', 'string', 'max:255'],
+            'new_address.city' => ['required_without:address_id', 'nullable', 'string', 'max:100'],
+            'new_address.district' => ['required_without:address_id', 'nullable', 'string', 'max:100'],
+            'new_address.thana' => ['nullable', 'string', 'max:100'],
+            'new_address.postal_code' => ['nullable', 'string', 'max:20'],
+            'new_address.label' => ['nullable', 'string', 'max:50'],
+            'new_address.is_default' => ['nullable', 'boolean'],
+            'shipping_method' => ['required', 'string', Rule::in(array_keys(config('shipping.methods', [])))],
             'payment_method' => ['required', Rule::enum(PaymentMethod::class)],
-            'coupon_code' => ['nullable', 'string', 'max:50'],
+            'cod_shipping_payment' => ['nullable', Rule::in(['bkash', 'nagad'])],
+            'payment_reference' => ['nullable', 'string', 'max:100'],
             'notes' => ['nullable', 'string', 'max:500'],
         ];
     }

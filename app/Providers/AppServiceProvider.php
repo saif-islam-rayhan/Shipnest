@@ -38,7 +38,7 @@ class AppServiceProvider extends ServiceProvider
                 ->get());
         });
 
-        View::composer(['layouts.frontend', 'layouts.partials.header'], function ($view) {
+        View::composer(['layouts.frontend', 'layouts.partials.header', 'components.layout.header'], function ($view) {
             $cartService = app(CartService::class);
             $user = auth()->user();
 

@@ -41,6 +41,16 @@ class Product extends Model
         return $this->belongsTo(Merchant::class);
     }
 
+    public function shop(): BelongsTo
+    {
+        return $this->merchant();
+    }
+
+    public function getShopIdAttribute(): ?int
+    {
+        return $this->merchant_id;
+    }
+
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
@@ -160,5 +170,47 @@ class Product extends Model
             : $this->images()->orderBy('sort_order')->first();
 
         return $image ? asset('storage/'.$image->image_path) : null;
+    }
+
+    public function getStockAttribute(): int
+    {
+        if ($this->relationLoaded('defaultVariant') && $this->defaultVariant) {
+            return (int) $this->defaultVariant->stock;
+        }
+
+        if ($this->relationLoaded('variants')) {
+            return (int) $this->variants->where('status', 'active')->sum('stock');
+        }
+
+        return (int) $this->variants()->where('status', 'active')->sum('stock');
+    }
+
+    public function getSkuAttribute(): ?string
+    {
+        if ($this->relationLoaded('defaultVariant') && $this->defaultVariant?->sku) {
+            return $this->defaultVariant->sku;
+        }
+
+        return $this->attributes['sku'] ?? null;
+    }
+
+    public function getRatingAttribute(): float
+    {
+        return (float) ($this->reviews_avg_rating ?? 0);
+    }
+
+    public function getTotalReviewsAttribute(): int
+    {
+        return (int) ($this->reviews_count ?? 0);
+    }
+
+    public function getTotalSoldAttribute(): int
+    {
+        return (int) ($this->order_items_sum_quantity ?? 0);
+    }
+
+    public function getIsFreeShippingAttribute(): bool
+    {
+        return $this->price >= config('shipnest.free_shipping_threshold', 500);
     }
 }

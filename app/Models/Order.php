@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use App\Enums\OrderStatus;
+use App\Enums\PaymentMethod;
+use App\Enums\PaymentStatus;
 use App\Models\Concerns\FormatsCurrency;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 
 class Order extends Model
 {
@@ -27,6 +31,8 @@ class Order extends Model
         'payment_transaction_id',
         'shipping_address_id',
         'coupon_id',
+        'shipping_method',
+        'payment_reference',
         'note',
     ];
 
@@ -38,6 +44,9 @@ class Order extends Model
             'shipping_charge' => 'decimal:2',
             'tax' => 'decimal:2',
             'total' => 'decimal:2',
+            'status' => OrderStatus::class,
+            'payment_method' => PaymentMethod::class,
+            'payment_status' => PaymentStatus::class,
         ];
     }
 
@@ -61,6 +70,18 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    public function shop(): HasOneThrough
+    {
+        return $this->hasOneThrough(
+            Merchant::class,
+            OrderItem::class,
+            'order_id',
+            'id',
+            'id',
+            'merchant_id',
+        );
+    }
+
     public function statusHistories(): HasMany
     {
         return $this->hasMany(OrderStatusHistory::class);
@@ -81,6 +102,21 @@ class Order extends Model
         return $this->hasOne(PaymentTransaction::class)->latestOfMany();
     }
 
+    public function payment(): HasOne
+    {
+        return $this->latestPayment();
+    }
+
+    public function address(): BelongsTo
+    {
+        return $this->shippingAddress();
+    }
+
+    public function getShippingFeeAttribute(): float
+    {
+        return (float) $this->shipping_charge;
+    }
+
     public function scopeForUser($query, int $userId)
     {
         return $query->where('user_id', $userId);
@@ -89,6 +125,11 @@ class Order extends Model
     public function scopeForMerchant($query, int $merchantId)
     {
         return $query->whereHas('items', fn ($q) => $q->where('merchant_id', $merchantId));
+    }
+
+    public function scopeForShop($query, int $shopId)
+    {
+        return $query->forMerchant($shopId);
     }
 
     public function scopeStatus($query, string $status)
@@ -124,6 +165,11 @@ class Order extends Model
     public function scopeCancelled($query)
     {
         return $query->where('status', 'cancelled');
+    }
+
+    public function getAmountDueOnDeliveryAttribute(): float
+    {
+        return max(0, (float) $this->subtotal - (float) $this->discount);
     }
 
     public function getFormattedTotalAttribute(): string

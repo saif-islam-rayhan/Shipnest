@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Storefront;
 
-use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
-use App\Services\Payment\PaymentService;
+use App\Services\OrderService;
+use App\Services\PaymentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -14,6 +14,7 @@ class OrderController extends Controller
 {
     public function __construct(
         private readonly PaymentService $paymentService,
+        private readonly OrderService $orderService,
     ) {}
 
     public function index(Request $request): View
@@ -33,24 +34,37 @@ class OrderController extends Controller
             abort(403);
         }
 
-        $order->load(['shop', 'items.product', 'payment', 'address']);
+        $order->load(['shop', 'items.product.images', 'payment', 'shippingAddress']);
 
         return view('storefront.orders.show', compact('order'));
     }
 
+    public function success(Request $request, string $orderNumber): View|RedirectResponse
+    {
+        $order = Order::query()
+            ->where('order_number', $orderNumber)
+            ->with(['items', 'shippingAddress'])
+            ->firstOrFail();
+
+        if ($order->user_id !== $request->user()->id) {
+            abort(403);
+        }
+
+        $estimatedDelivery = $this->orderService->getEstimatedDelivery($order);
+
+        return view('storefront.orders.success', compact('order', 'estimatedDelivery'));
+    }
+
     public function paymentCallback(Request $request, string $gateway): RedirectResponse
     {
-        $method = PaymentMethod::from($gateway);
-        $payment = $this->paymentService->verify($method, $request->all());
+        $result = $this->paymentService->handleCallback($gateway, $request->all());
 
-        if ($payment->status->value === 'completed') {
-            return redirect()
-                ->route('orders.show', $payment->order)
+        if ($result['success']) {
+            return redirect($result['redirect_url'])
                 ->with('success', 'Payment completed successfully.');
         }
 
-        return redirect()
-            ->route('orders.show', $payment->order)
+        return redirect($result['redirect_url'])
             ->with('error', 'Payment failed or was cancelled.');
     }
 }

@@ -13,18 +13,28 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::post('/newsletter', [HomeController::class, 'subscribe'])->name('newsletter.subscribe');
 
 Route::get('/products', [ProductController::class, 'index'])->name('products.index');
+Route::get('/search', [ProductController::class, 'search'])->name('search');
+Route::get('/category/{slug}', [ProductController::class, 'category'])->name('category.show');
+Route::get('/brand/{slug}', [ProductController::class, 'brand'])->name('brand.show');
+Route::get('/product/{slug}', fn (string $slug) => redirect()->route('products.show', $slug))->name('product.show');
 Route::get('/products/{slug}', [ProductController::class, 'show'])->name('products.show');
+Route::post('/products/{product}/reviews', [\App\Http\Controllers\Storefront\ProductReviewController::class, 'store'])
+    ->middleware(['auth', 'active'])
+    ->name('products.reviews.store');
 
 Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
 Route::post('/cart', [CartController::class, 'store'])->name('cart.store');
 Route::patch('/cart/{cartItem}', [CartController::class, 'update'])->name('cart.update');
 Route::delete('/cart/{cartItem}', [CartController::class, 'destroy'])->name('cart.destroy');
+Route::post('/cart/coupon', [CartController::class, 'applyCoupon'])->name('cart.coupon.apply');
+Route::delete('/cart/coupon', [CartController::class, 'removeCoupon'])->name('cart.coupon.remove');
 
-Route::middleware(['auth', 'active', 'verified'])->group(function () {
+Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/checkout', [CheckoutController::class, 'index'])->name('checkout.index');
     Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
     Route::get('/orders', [OrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/{order}', [OrderController::class, 'show'])->name('orders.show');
+    Route::get('/order/success/{orderNumber}', [OrderController::class, 'success'])->name('order.success');
 });
 
 Route::get('/payment/callback/{gateway}', [OrderController::class, 'paymentCallback'])->name('payment.callback');

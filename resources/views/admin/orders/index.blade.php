@@ -23,7 +23,7 @@
                   @csrf @method('PATCH')
                   <select name="status" onchange="this.form.submit()" class="text-xs border-gray-300 rounded">
                     @foreach(\App\Enums\OrderStatus::cases() as $status)
-                      <option value="{{ $status->value }}" @selected($order->status === $status)>{{ $status->label() }}</option>
+                      <option value="{{ $status->value }}" @selected($order->status === $status->value)>{{ $status->label() }}</option>
                     @endforeach
                   </select>
                 </form>

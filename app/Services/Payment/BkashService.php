@@ -5,27 +5,29 @@ namespace App\Services\Payment;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Models\Order;
-use App\Models\Payment;
+use App\Models\PaymentTransaction;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 
-class BkashGateway extends PaymentGateway
+class BkashService extends PaymentGateway
 {
     public function method(): PaymentMethod
     {
         return PaymentMethod::Bkash;
     }
 
-    public function initiate(Order $order, User $user): array
+    public function initiate(Order $order, User $user, ?string $reference = null, array $options = []): array
     {
+        if ($reference) {
+            return $this->initiateManual($order, $user, $reference);
+        }
+
         $transactionId = $this->generateTransactionId();
         $payment = $this->createPaymentRecord($order, $user, $transactionId);
-
         $token = $this->getAccessToken();
 
         if (! $token) {
-            $payment->update(['status' => PaymentStatus::Failed]);
+            $payment->update(['status' => PaymentStatus::Failed->value]);
 
             return [
                 'success' => false,
@@ -47,17 +49,18 @@ class BkashGateway extends PaymentGateway
             ]);
 
         if ($response->successful() && $response->json('statusCode') === '0000') {
+            $order->update(['payment_transaction_id' => $transactionId]);
+
             return [
                 'success' => true,
                 'payment' => $payment,
                 'redirect_url' => $response->json('bkashURL'),
-                'bkash_payment_id' => $response->json('paymentID'),
             ];
         }
 
         $payment->update([
-            'status' => PaymentStatus::Failed,
-            'gateway_response' => $response->json(),
+            'status' => PaymentStatus::Failed->value,
+            'gateway_response' => $response->json() ?? [],
         ]);
 
         return [
@@ -67,16 +70,47 @@ class BkashGateway extends PaymentGateway
         ];
     }
 
-    public function verify(array $payload): Payment
+    protected function initiateManual(Order $order, User $user, string $reference): array
     {
-        $paymentId = $payload['paymentID'] ?? $payload['payment_id'];
-        $payment = Payment::query()
+        $transactionId = $this->generateTransactionId();
+        $payment = PaymentTransaction::query()->create([
+            'order_id' => $order->id,
+            'user_id' => $user->id,
+            'transaction_id' => $transactionId,
+            'method' => PaymentMethod::Bkash->value,
+            'status' => PaymentStatus::Pending->value,
+            'amount' => $order->total,
+            'gateway_response' => ['reference' => $reference, 'type' => 'manual'],
+        ]);
+
+        $order->update([
+            'payment_reference' => $reference,
+            'payment_transaction_id' => $transactionId,
+            'payment_status' => PaymentStatus::Pending->value,
+        ]);
+
+        return [
+            'success' => true,
+            'payment' => $payment,
+            'redirect_url' => route('order.success', $order->order_number),
+            'message' => 'Payment submitted! Your order will be confirmed after we verify your bKash payment.',
+            'confirmed' => false,
+        ];
+    }
+
+    public function verify(array $payload): PaymentTransaction
+    {
+        $paymentId = $payload['paymentID'] ?? $payload['payment_id'] ?? null;
+        $payment = PaymentTransaction::query()
             ->with('order')
-            ->where('transaction_id', $payload['merchantInvoiceNumber'] ?? '')
+            ->where('transaction_id', $payload['merchantInvoiceNumber'] ?? $payload['transaction_id'] ?? '')
             ->firstOrFail();
 
-        $token = $this->getAccessToken();
+        if (! $paymentId) {
+            return $payment;
+        }
 
+        $token = $this->getAccessToken();
         $response = Http::withToken($token)
             ->withHeaders(['X-APP-Key' => config('payment.bkash.app_key')])
             ->post(config('payment.bkash.base_url').'/tokenized/checkout/execute', [
@@ -85,19 +119,18 @@ class BkashGateway extends PaymentGateway
 
         if ($response->successful() && $response->json('statusCode') === '0000') {
             $payment->update([
-                'status' => PaymentStatus::Completed,
+                'status' => PaymentStatus::Completed->value,
                 'gateway_response' => $response->json(),
-                'paid_at' => now(),
             ]);
 
             $payment->order->update([
-                'payment_status' => PaymentStatus::Completed,
-                'paid_at' => now(),
+                'payment_status' => PaymentStatus::Completed->value,
+                'payment_transaction_id' => $payment->transaction_id,
             ]);
         } else {
             $payment->update([
-                'status' => PaymentStatus::Failed,
-                'gateway_response' => $response->json(),
+                'status' => PaymentStatus::Failed->value,
+                'gateway_response' => $response->json() ?? [],
             ]);
         }
 

@@ -83,6 +83,20 @@ class OrderItem extends Model
         return $this->formatCurrency((float) $this->total);
     }
 
+    public function getTotalPriceAttribute(): float
+    {
+        return (float) $this->total;
+    }
+
+    public function getProductImageAttribute(): ?string
+    {
+        if ($this->relationLoaded('product') && $this->product) {
+            return $this->product->thumbnail ?: $this->product->images->first()?->image_path;
+        }
+
+        return null;
+    }
+
     public function getDiscountPercentAttribute(): ?int
     {
         $comparePrice = (float) $this->unit_price + (float) $this->discount;

@@ -47,6 +47,16 @@ class CartItem extends Model
         return (float) $this->price * $this->quantity;
     }
 
+    public function getUnitPriceAttribute(): float
+    {
+        return (float) $this->price;
+    }
+
+    public function getTotalPriceAttribute(): float
+    {
+        return $this->line_total;
+    }
+
     public function getFormattedPriceAttribute(): string
     {
         return $this->formatCurrency((float) $this->price);

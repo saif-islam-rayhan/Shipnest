@@ -5,13 +5,13 @@ namespace App\Services;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
-use App\Enums\ProductStatus;
-use App\Models\Address;
+use App\Jobs\SendOrderConfirmationEmail;
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\User;
+use App\Models\UserAddress;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -22,98 +22,93 @@ class OrderService
         private readonly CartService $cartService,
     ) {}
 
-    public function createFromCart(
-        User $user,
-        Address $address,
-        PaymentMethod $paymentMethod,
-        ?string $couponCode = null,
-        ?string $notes = null,
-    ): Collection {
+    public function placeOrder(User $user, array $data): Collection
+    {
+        $address = $this->resolveAddress($user, $data);
         $cart = $this->cartService->getCart($user);
-        $cart->load(['items.product.shop', 'items.product.images']);
+        $cart->load(['items.product.shop', 'items.product.images', 'items.variant']);
 
         if ($cart->items->isEmpty()) {
             throw new \InvalidArgumentException('Your cart is empty.');
         }
 
+        $couponCode = $cart->coupon_code;
+        $shippingMethod = $data['shipping_method'] ?? 'standard';
+        $paymentMethod = PaymentMethod::from($data['payment_method']);
+        $paymentReference = $data['payment_reference'] ?? null;
+        $notes = $data['notes'] ?? null;
+
+        $totals = $this->calculateTotal($cart, $shippingMethod, $couponCode);
         $grouped = $cart->items->groupBy(fn (CartItem $item) => $item->product->shop_id);
+        $totalShipping = $totals['shipping'];
 
-        return DB::transaction(function () use ($user, $address, $paymentMethod, $couponCode, $notes, $cart, $grouped) {
+        return DB::transaction(function () use (
+            $user, $address, $paymentMethod, $paymentReference, $notes,
+            $cart, $grouped, $totals, $shippingMethod, $couponCode, $totalShipping
+        ) {
             $orders = collect();
+            $coupon = $totals['coupon'];
+            $firstShop = true;
 
-            foreach ($grouped as $shopId => $items) {
-                $shop = $items->first()->product->shop;
-                $subtotal = $items->sum(fn (CartItem $item) => $item->total_price);
-                $shippingFee = $this->calculateShippingFee($items);
-                $discount = 0;
-
-                if ($couponCode) {
-                    $coupon = Coupon::query()
-                        ->where('code', $couponCode)
-                        ->where(function ($query) use ($shopId) {
-                            $query->whereNull('shop_id')->orWhere('shop_id', $shopId);
-                        })
-                        ->first();
-
-                    if ($coupon && $coupon->isValid()) {
-                        $discount = $coupon->calculateDiscount($subtotal);
-                        $coupon->increment('used_count');
-                    }
-                }
-
-                $total = $subtotal + $shippingFee - $discount;
-                $commissionAmount = round($total * ($shop->commission_rate / 100), 2);
+            foreach ($grouped as $items) {
+                $shopSubtotal = $items->sum(fn (CartItem $item) => $item->total_price);
+                $shopDiscount = $coupon && $totals['subtotal'] > 0
+                    ? round($totals['discount'] * ($shopSubtotal / $totals['subtotal']), 2)
+                    : 0;
+                $shopShipping = $firstShop ? $totalShipping : 0;
+                $firstShop = false;
+                $shopTotal = $shopSubtotal - $shopDiscount + $shopShipping;
 
                 $order = Order::query()->create([
                     'order_number' => $this->generateOrderNumber(),
                     'user_id' => $user->id,
-                    'shop_id' => $shopId,
-                    'address_id' => $address->id,
-                    'status' => OrderStatus::Pending,
-                    'payment_method' => $paymentMethod,
+                    'status' => OrderStatus::Pending->value,
+                    'subtotal' => $shopSubtotal,
+                    'discount' => $shopDiscount,
+                    'shipping_charge' => $shopShipping,
+                    'shipping_method' => $shippingMethod,
+                    'tax' => 0,
+                    'total' => $shopTotal,
+                    'payment_method' => $paymentMethod->value,
                     'payment_status' => $paymentMethod === PaymentMethod::Cod
-                        ? PaymentStatus::Pending
-                        : PaymentStatus::Processing,
-                    'subtotal' => $subtotal,
-                    'shipping_fee' => $shippingFee,
-                    'discount' => $discount,
-                    'total' => $total,
-                    'commission_amount' => $commissionAmount,
-                    'coupon_code' => $couponCode,
-                    'notes' => $notes,
-                    'shipping_address' => $address->toShippingArray(),
+                        ? PaymentStatus::Pending->value
+                        : PaymentStatus::Processing->value,
+                    'payment_reference' => $paymentReference,
+                    'shipping_address_id' => $address->id,
+                    'coupon_id' => $coupon?->id,
+                    'note' => $notes,
                 ]);
 
                 foreach ($items as $cartItem) {
                     $product = $cartItem->product;
+                    $variant = $cartItem->variant ?? $product->defaultVariant;
 
-                    if ($product->status !== ProductStatus::Active || $product->stock < $cartItem->quantity) {
+                    if ($product->status !== 'active' || ! $variant || $variant->stock < $cartItem->quantity) {
                         throw new \InvalidArgumentException("Product {$product->name} is no longer available.");
                     }
 
-                    $primaryImage = $product->images->firstWhere('is_primary', true)
-                        ?? $product->images->first();
-
                     $order->items()->create([
+                        'merchant_id' => $product->merchant_id,
                         'product_id' => $product->id,
+                        'variant_id' => $variant->id,
                         'product_name' => $product->name,
-                        'product_sku' => $product->sku,
-                        'product_image' => $primaryImage?->path,
+                        'variant_name' => $variant->name,
+                        'sku' => $variant->sku,
                         'quantity' => $cartItem->quantity,
                         'unit_price' => $cartItem->unit_price,
-                        'total_price' => $cartItem->total_price,
+                        'discount' => 0,
+                        'total' => $cartItem->total_price,
+                        'status' => OrderStatus::Pending->value,
                     ]);
 
-                    $product->decrement('stock', $cartItem->quantity);
-                    $product->increment('total_sold', $cartItem->quantity);
-
-                    if ($product->stock <= 0) {
-                        $product->update(['status' => ProductStatus::OutOfStock]);
-                    }
+                    $variant->decrement('stock', $cartItem->quantity);
                 }
 
-                $shop->increment('total_orders');
-                $orders->push($order->load(['items', 'shop', 'user']));
+                $orders->push($order->load(['items', 'shop', 'user', 'shippingAddress']));
+            }
+
+            if ($coupon && $totals['discount'] > 0) {
+                $coupon->increment('used_count');
             }
 
             $this->cartService->clear($cart);
@@ -122,20 +117,111 @@ class OrderService
         });
     }
 
+    /** @deprecated Use placeOrder() */
+    public function createFromCart(
+        User $user,
+        UserAddress $address,
+        PaymentMethod $paymentMethod,
+        ?string $couponCode = null,
+        ?string $notes = null,
+    ): Collection {
+        return $this->placeOrder($user, [
+            'address_id' => $address->id,
+            'shipping_method' => 'standard',
+            'payment_method' => $paymentMethod->value,
+            'notes' => $notes,
+        ]);
+    }
+
+    public function calculateTotal(Cart $cart, string $shippingMethod = 'standard', ?string $couponCode = null): array
+    {
+        $cart->loadMissing('items');
+        $subtotal = $cart->subtotal;
+        $discount = 0;
+        $coupon = null;
+
+        if ($couponCode) {
+            $coupon = Coupon::query()->where('code', $couponCode)->valid()->first();
+            if ($coupon && $coupon->isValid()) {
+                $discount = $coupon->calculateDiscount($subtotal);
+            }
+        }
+
+        $shipping = $this->applyShipping($shippingMethod, $subtotal);
+        $total = max(0, $subtotal - $discount + $shipping);
+
+        return compact('subtotal', 'discount', 'shipping', 'total', 'coupon');
+    }
+
+    public function applyShipping(string $method, float $subtotal): float
+    {
+        if (config('shipping.free_shipping_enabled', false)
+            && $subtotal >= config('shipnest.free_shipping_threshold', 500)) {
+            return 0;
+        }
+
+        $methods = config('shipping.methods', []);
+
+        return (float) ($methods[$method]['rate'] ?? 60);
+    }
+
+    public function confirmOrder(Order $order): Order
+    {
+        if ($order->status !== OrderStatus::Confirmed) {
+            $order->update(['status' => OrderStatus::Confirmed->value]);
+            $this->sendConfirmationEmail($order->fresh(['user', 'items', 'shippingAddress']));
+        }
+
+        return $order->fresh();
+    }
+
+    public function sendConfirmationEmail(Order $order): void
+    {
+        SendOrderConfirmationEmail::dispatch($order);
+    }
+
     public function updateStatus(Order $order, OrderStatus $status): Order
     {
-        $updates = ['status' => $status];
-
-        match ($status) {
-            OrderStatus::Shipped => $updates['shipped_at'] = now(),
-            OrderStatus::Delivered => $updates['delivered_at'] = now(),
-            OrderStatus::Cancelled => $updates['cancelled_at'] = now(),
-            default => null,
-        };
-
-        $order->update($updates);
+        $order->update(['status' => $status->value]);
 
         return $order->fresh(['items', 'shop', 'user', 'payment']);
+    }
+
+    public function getEstimatedDelivery(Order $order): string
+    {
+        $method = $order->shipping_method ?? 'standard';
+        $methods = config('shipping.methods', []);
+
+        return $methods[$method]['days'] ?? '3-5 business days';
+    }
+
+    protected function resolveAddress(User $user, array $data): UserAddress
+    {
+        if (! empty($data['address_id'])) {
+            return UserAddress::query()
+                ->where('user_id', $user->id)
+                ->findOrFail($data['address_id']);
+        }
+
+        $new = $data['new_address'] ?? $data;
+        $isDefault = (bool) ($new['is_default'] ?? false);
+
+        if ($isDefault) {
+            UserAddress::query()->where('user_id', $user->id)->update(['is_default' => false]);
+        }
+
+        return UserAddress::query()->create([
+            'user_id' => $user->id,
+            'label' => $new['label'] ?? 'Home',
+            'recipient_name' => $new['recipient_name'],
+            'phone' => $new['phone'],
+            'address_line1' => $new['address_line1'],
+            'city' => $new['city'],
+            'district' => $new['district'],
+            'thana' => $new['thana'] ?? null,
+            'postal_code' => $new['postal_code'] ?? null,
+            'is_default' => $isDefault,
+        ]);
     }
 
     protected function generateOrderNumber(): string
@@ -145,18 +231,5 @@ class OrderService
         } while (Order::query()->where('order_number', $number)->exists());
 
         return $number;
-    }
-
-    protected function calculateShippingFee(Collection $items): float
-    {
-        $hasFreeShipping = $items->every(fn (CartItem $item) => $item->product->is_free_shipping);
-
-        if ($hasFreeShipping) {
-            return 0;
-        }
-
-        $subtotal = $items->sum(fn (CartItem $item) => $item->total_price);
-
-        return $subtotal >= config('shipnest.free_shipping_threshold', 500) ? 0 : 60;
     }
 }

@@ -10,7 +10,7 @@
         <h2 class="font-semibold text-gray-900 mb-3">Order Details</h2>
         <dl class="space-y-2 text-sm">
           <div class="flex justify-between"><dt class="text-gray-500">Date</dt><dd>{{ $order->created_at->format('M d, Y H:i') }}</dd></div>
-          <div class="flex justify-between"><dt class="text-gray-500">Seller</dt><dd>{{ $order->shop->name }}</dd></div>
+          <div class="flex justify-between"><dt class="text-gray-500">Seller</dt><dd>{{ $order->shop?->name ?? '—' }}</dd></div>
           <div class="flex justify-between"><dt class="text-gray-500">Payment</dt><dd>{{ $order->payment_method->label() }}</dd></div>
           <div class="flex justify-between"><dt class="text-gray-500">Payment Status</dt><dd>{{ $order->payment_status->label() }}</dd></div>
           @if($order->tracking_number)
@@ -20,14 +20,14 @@
       </div>
       <div class="card p-6">
         <h2 class="font-semibold text-gray-900 mb-3">Shipping Address</h2>
-        @if($order->shipping_address)
+        @if($order->shippingAddress)
           <p class="text-sm text-gray-600">
-            {{ $order->shipping_address['name'] }}<br>
-            {{ $order->shipping_address['address_line_1'] }}<br>
-            @if($order->shipping_address['address_line_2']){{ $order->shipping_address['address_line_2'] }}<br>@endif
-            {{ $order->shipping_address['city'] }}, {{ $order->shipping_address['district'] }}<br>
-            {{ $order->shipping_address['phone'] }}
+            {{ $order->shippingAddress->recipient_name }}<br>
+            {{ $order->shippingAddress->full_address }}<br>
+            {{ $order->shippingAddress->phone }}
           </p>
+        @else
+          <p class="text-sm text-gray-500">No shipping address on file.</p>
         @endif
       </div>
     </div>
@@ -55,6 +55,10 @@
         <div class="flex justify-between"><span>Shipping</span><span>{{ config('shipnest.currency_symbol') }}{{ number_format($order->shipping_fee) }}</span></div>
         @if($order->discount > 0)
           <div class="flex justify-between text-green-600"><span>Discount</span><span>-{{ config('shipnest.currency_symbol') }}{{ number_format($order->discount) }}</span></div>
+        @endif
+        @if($order->payment_method === \App\Enums\PaymentMethod::Cod && $order->shipping_charge > 0)
+          <div class="flex justify-between text-amber-700"><span>Shipping (paid upfront)</span><span>{{ config('shipnest.currency_symbol') }}{{ number_format($order->shipping_charge) }}</span></div>
+          <div class="flex justify-between font-medium"><span>Due on delivery (cash)</span><span>{{ config('shipnest.currency_symbol') }}{{ number_format($order->amount_due_on_delivery) }}</span></div>
         @endif
         <div class="flex justify-between font-bold text-base pt-2 border-t"><span>Total</span><span class="text-primary">{{ config('shipnest.currency_symbol') }}{{ number_format($order->total) }}</span></div>
       </div>

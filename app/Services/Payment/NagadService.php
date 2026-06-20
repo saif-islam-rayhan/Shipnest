@@ -5,19 +5,23 @@ namespace App\Services\Payment;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Models\Order;
-use App\Models\Payment;
+use App\Models\PaymentTransaction;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
 
-class NagadGateway extends PaymentGateway
+class NagadService extends PaymentGateway
 {
     public function method(): PaymentMethod
     {
         return PaymentMethod::Nagad;
     }
 
-    public function initiate(Order $order, User $user): array
+    public function initiate(Order $order, User $user, ?string $reference = null, array $options = []): array
     {
+        if ($reference) {
+            return $this->initiateManual($order, $user, $reference);
+        }
+
         $transactionId = $this->generateTransactionId();
         $payment = $this->createPaymentRecord($order, $user, $transactionId);
 
@@ -44,6 +48,8 @@ class NagadGateway extends PaymentGateway
         );
 
         if ($response->successful() && $response->json('status') === 'Success') {
+            $order->update(['payment_transaction_id' => $transactionId]);
+
             return [
                 'success' => true,
                 'payment' => $payment,
@@ -52,8 +58,8 @@ class NagadGateway extends PaymentGateway
         }
 
         $payment->update([
-            'status' => PaymentStatus::Failed,
-            'gateway_response' => $response->json(),
+            'status' => PaymentStatus::Failed->value,
+            'gateway_response' => $response->json() ?? [],
         ]);
 
         return [
@@ -63,27 +69,54 @@ class NagadGateway extends PaymentGateway
         ];
     }
 
-    public function verify(array $payload): Payment
+    protected function initiateManual(Order $order, User $user, string $reference): array
     {
-        $payment = Payment::query()
+        $transactionId = $this->generateTransactionId();
+        $payment = PaymentTransaction::query()->create([
+            'order_id' => $order->id,
+            'user_id' => $user->id,
+            'transaction_id' => $transactionId,
+            'method' => PaymentMethod::Nagad->value,
+            'status' => PaymentStatus::Pending->value,
+            'amount' => $order->total,
+            'gateway_response' => ['reference' => $reference, 'type' => 'manual'],
+        ]);
+
+        $order->update([
+            'payment_reference' => $reference,
+            'payment_transaction_id' => $transactionId,
+            'payment_status' => PaymentStatus::Pending->value,
+        ]);
+
+        return [
+            'success' => true,
+            'payment' => $payment,
+            'redirect_url' => route('order.success', $order->order_number),
+            'message' => 'Payment submitted! Your order will be confirmed after we verify your Nagad payment.',
+            'confirmed' => false,
+        ];
+    }
+
+    public function verify(array $payload): PaymentTransaction
+    {
+        $payment = PaymentTransaction::query()
             ->with('order')
-            ->where('transaction_id', $payload['orderId'] ?? $payload['transaction_id'])
+            ->where('transaction_id', $payload['orderId'] ?? $payload['transaction_id'] ?? '')
             ->firstOrFail();
 
         if (($payload['status'] ?? '') === 'Success') {
             $payment->update([
-                'status' => PaymentStatus::Completed,
+                'status' => PaymentStatus::Completed->value,
                 'gateway_response' => $payload,
-                'paid_at' => now(),
             ]);
 
             $payment->order->update([
-                'payment_status' => PaymentStatus::Completed,
-                'paid_at' => now(),
+                'payment_status' => PaymentStatus::Completed->value,
+                'payment_transaction_id' => $payment->transaction_id,
             ]);
         } else {
             $payment->update([
-                'status' => PaymentStatus::Failed,
+                'status' => PaymentStatus::Failed->value,
                 'gateway_response' => $payload,
             ]);
         }

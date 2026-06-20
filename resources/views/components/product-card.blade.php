@@ -57,14 +57,23 @@
         </div>
     </a>
 
-    @if($showActions)
-        <form action="{{ route('cart.store') }}" method="POST" class="px-3 pb-3">
+    @if($showActions && $product->stock > 0)
+          <form action="{{ route('cart.store') }}" method="POST" class="px-3 pb-3">
             @csrf
             <input type="hidden" name="product_id" value="{{ $product->id }}">
+            @if($product->relationLoaded('defaultVariant') && $product->defaultVariant)
+              <input type="hidden" name="variant_id" value="{{ $product->defaultVariant->id }}">
+            @endif
             <input type="hidden" name="quantity" value="1">
-            <button type="submit" class="w-full btn-primary py-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+            <button type="submit" class="w-full btn-primary py-2 text-xs">
                 Add to Cart
             </button>
         </form>
+    @elseif($showActions)
+        <div class="px-3 pb-3">
+            <button type="button" disabled class="w-full py-2 text-xs rounded-md bg-gray-100 text-gray-400 cursor-not-allowed">
+                Out of Stock
+            </button>
+        </div>
     @endif
 </div>

@@ -5,18 +5,18 @@ namespace App\Services\Payment;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Models\Order;
-use App\Models\Payment;
+use App\Models\PaymentTransaction;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
 
-class SslcommerzGateway extends PaymentGateway
+class SSLCommerzService extends PaymentGateway
 {
     public function method(): PaymentMethod
     {
         return PaymentMethod::Sslcommerz;
     }
 
-    public function initiate(Order $order, User $user): array
+    public function initiate(Order $order, User $user, ?string $reference = null, array $options = []): array
     {
         $transactionId = $this->generateTransactionId();
         $payment = $this->createPaymentRecord($order, $user, $transactionId);
@@ -42,6 +42,8 @@ class SslcommerzGateway extends PaymentGateway
         $response = Http::asForm()->post(config('payment.sslcommerz.api_url').'/gwprocess/v4/api.php', $postData);
 
         if ($response->successful() && ($response->json('status') === 'SUCCESS')) {
+            $order->update(['payment_transaction_id' => $transactionId]);
+
             return [
                 'success' => true,
                 'payment' => $payment,
@@ -50,8 +52,8 @@ class SslcommerzGateway extends PaymentGateway
         }
 
         $payment->update([
-            'status' => PaymentStatus::Failed,
-            'gateway_response' => $response->json(),
+            'status' => PaymentStatus::Failed->value,
+            'gateway_response' => $response->json() ?? [],
         ]);
 
         return [
@@ -61,11 +63,11 @@ class SslcommerzGateway extends PaymentGateway
         ];
     }
 
-    public function verify(array $payload): Payment
+    public function verify(array $payload): PaymentTransaction
     {
-        $payment = Payment::query()
+        $payment = PaymentTransaction::query()
             ->with('order')
-            ->where('transaction_id', $payload['tran_id'] ?? $payload['transaction_id'])
+            ->where('transaction_id', $payload['tran_id'] ?? $payload['transaction_id'] ?? '')
             ->firstOrFail();
 
         $validationData = [
@@ -79,19 +81,18 @@ class SslcommerzGateway extends PaymentGateway
 
         if ($response->successful() && $response->json('status') === 'VALID') {
             $payment->update([
-                'status' => PaymentStatus::Completed,
+                'status' => PaymentStatus::Completed->value,
                 'gateway_response' => $response->json(),
-                'paid_at' => now(),
             ]);
 
             $payment->order->update([
-                'payment_status' => PaymentStatus::Completed,
-                'paid_at' => now(),
+                'payment_status' => PaymentStatus::Completed->value,
+                'payment_transaction_id' => $payment->transaction_id,
             ]);
         } else {
             $payment->update([
-                'status' => PaymentStatus::Failed,
-                'gateway_response' => $response->json(),
+                'status' => PaymentStatus::Failed->value,
+                'gateway_response' => $response->json() ?? [],
             ]);
         }
 
