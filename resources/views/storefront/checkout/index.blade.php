@@ -14,6 +14,7 @@
         'freeShippingEnabled' => (bool) config('shipping.free_shipping_enabled', false),
         'freeShippingThreshold' => (float) config('shipnest.free_shipping_threshold', 500),
         'currencySymbol' => config('shipnest.currency_symbol', '৳'),
+        'gatewayRedirect' => $gatewayRedirect,
     ];
   @endphp
 
@@ -153,21 +154,50 @@
           </div>
 
           <div x-show="paymentMethod === 'sslcommerz'" class="mt-4 p-4 bg-blue-50 rounded-lg text-sm text-blue-800">
-            You will be redirected to SSLCommerz to pay securely with card or internet banking.
+            <template x-if="gatewayRedirect.sslcommerz">
+              <p>You will be redirected to SSLCommerz to pay securely with card or internet banking.</p>
+            </template>
+            <template x-if="!gatewayRedirect.sslcommerz">
+              <p class="text-red-700">SSLCommerz is not configured. Choose another payment method.</p>
+            </template>
+          </div>
+
+          <div x-show="paymentMethod === 'stripe'" class="mt-4 p-4 bg-indigo-50 rounded-lg text-sm text-indigo-900">
+            <template x-if="gatewayRedirect.stripe">
+              <p>You will be redirected to Stripe to pay securely with international cards (Visa, Mastercard, etc.).</p>
+            </template>
+            <template x-if="!gatewayRedirect.stripe">
+              <p class="text-red-700">Stripe is not enabled. Contact support or choose another method.</p>
+            </template>
           </div>
 
           <div x-show="paymentMethod === 'bkash'" class="mt-4 p-4 bg-pink-50 rounded-lg space-y-3">
-            <p class="text-sm text-pink-900">Send <strong x-text="currencySymbol + formatMoney(total)"></strong> to bKash: <strong>{{ $merchantNumbers['bkash'] ?? 'N/A' }}</strong></p>
-            <p class="text-xs text-pink-800">Full amount includes product price + shipping charge.</p>
+            <template x-if="gatewayRedirect.bkash">
+              <p class="text-sm text-pink-900">You will be redirected to bKash to pay <strong x-text="currencySymbol + formatMoney(total)"></strong>.</p>
+              <p class="text-xs text-pink-800">Or pay manually to <strong>{{ $merchantNumbers['bkash'] ?? 'N/A' }}</strong> and enter transaction ID below.</p>
+            </template>
+            <template x-if="!gatewayRedirect.bkash">
+              <p class="text-sm text-pink-900">Send <strong x-text="currencySymbol + formatMoney(total)"></strong> to bKash: <strong>{{ $merchantNumbers['bkash'] ?? 'N/A' }}</strong></p>
+              <p class="text-xs text-pink-800">Full amount includes product price + shipping charge.</p>
+            </template>
           </div>
 
           <div x-show="paymentMethod === 'nagad'" class="mt-4 p-4 bg-orange-50 rounded-lg space-y-3">
-            <p class="text-sm text-orange-900">Send <strong x-text="currencySymbol + formatMoney(total)"></strong> to Nagad: <strong>{{ $merchantNumbers['nagad'] ?? 'N/A' }}</strong></p>
-            <p class="text-xs text-orange-800">Full amount includes product price + shipping charge.</p>
+            <template x-if="gatewayRedirect.nagad">
+              <p class="text-sm text-orange-900">You will be redirected to Nagad to pay <strong x-text="currencySymbol + formatMoney(total)"></strong>.</p>
+              <p class="text-xs text-orange-800">Or pay manually to <strong>{{ $merchantNumbers['nagad'] ?? 'N/A' }}</strong> and enter transaction ID below.</p>
+            </template>
+            <template x-if="!gatewayRedirect.nagad">
+              <p class="text-sm text-orange-900">Send <strong x-text="currencySymbol + formatMoney(total)"></strong> to Nagad: <strong>{{ $merchantNumbers['nagad'] ?? 'N/A' }}</strong></p>
+              <p class="text-xs text-orange-800">Full amount includes product price + shipping charge.</p>
+            </template>
           </div>
 
           <div x-show="['bkash', 'nagad'].includes(paymentMethod)" class="mt-2">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Transaction Reference</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              <span x-show="gatewayRedirect[paymentMethod]">Transaction Reference (optional for redirect)</span>
+              <span x-show="!gatewayRedirect[paymentMethod]">Transaction Reference *</span>
+            </label>
             <input type="text" x-model="paymentReference" class="input-field" placeholder="Enter your transaction ID"
               :name="['bkash', 'nagad'].includes(paymentMethod) ? 'payment_reference' : ''">
           </div>

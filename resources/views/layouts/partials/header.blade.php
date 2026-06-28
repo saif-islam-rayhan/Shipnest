@@ -112,7 +112,9 @@
                             @if(auth()->user()->isMerchant())
                                 <a href="{{ route('merchant.dashboard') }}" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-primary-50 hover:text-primary">Seller Center</a>
                             @endif
-                            <a href="{{ route('orders.index') }}" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-primary-50 hover:text-primary">My Orders</a>
+                            <a href="{{ route('account.dashboard') }}" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-primary-50 hover:text-primary">My Account</a>
+                            <a href="{{ route('account.orders.index') }}" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-primary-50 hover:text-primary">My Orders</a>
+                            <a href="{{ route('account.wishlist.index') }}" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-primary-50 hover:text-primary">Wishlist</a>
                             <hr class="my-1 border-gray-100">
                             <form method="POST" action="{{ route('logout') }}">
                                 @csrf

@@ -17,7 +17,7 @@ Thank you for your order! We've received **{{ $order->order_number }}** and will
 
 **Order total:** {{ config('shipnest.currency_symbol') }}{{ number_format($order->total) }}
 
-<x-mail::button :url="route('orders.show', $order)">
+<x-mail::button :url="route('account.orders.show', $order->order_number)">
 View Order
 </x-mail::button>
 

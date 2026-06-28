@@ -20,6 +20,7 @@ class OrderReturn extends Model
         'description',
         'status',
         'refund_amount',
+        'merchant_note',
     ];
 
     protected function casts(): array

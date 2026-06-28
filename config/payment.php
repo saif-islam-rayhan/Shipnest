@@ -1,6 +1,21 @@
 <?php
 
 return [
+    'enabled' => [
+        'cod' => env('PAYMENT_COD_ENABLED', true),
+        'sslcommerz' => env('PAYMENT_SSLCOMMERZ_ENABLED', true),
+        'bkash' => env('PAYMENT_BKASH_ENABLED', true),
+        'nagad' => env('PAYMENT_NAGAD_ENABLED', true),
+        'stripe' => env('PAYMENT_STRIPE_ENABLED', false),
+    ],
+
+    'stripe' => [
+        'key' => env('STRIPE_KEY'),
+        'secret' => env('STRIPE_SECRET'),
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        'currency' => env('STRIPE_CURRENCY', 'usd'),
+    ],
+
     'sslcommerz' => [
         'store_id' => env('SSLCOMMERZ_STORE_ID'),
         'store_password' => env('SSLCOMMERZ_STORE_PASSWORD'),

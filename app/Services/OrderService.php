@@ -44,7 +44,7 @@ class OrderService
 
         return DB::transaction(function () use (
             $user, $address, $paymentMethod, $paymentReference, $notes,
-            $cart, $grouped, $totals, $shippingMethod, $couponCode, $totalShipping
+            $cart, $grouped, $totals, $shippingMethod, $totalShipping
         ) {
             $orders = collect();
             $coupon = $totals['coupon'];
@@ -182,9 +182,48 @@ class OrderService
 
     public function updateStatus(Order $order, OrderStatus $status): Order
     {
-        $order->update(['status' => $status->value]);
+        $updates = ['status' => $status->value];
+
+        if ($status === OrderStatus::Delivered && ! $order->delivered_at) {
+            $updates['delivered_at'] = now();
+        }
+
+        $order->update($updates);
+
+        $order->statusHistories()->create([
+            'status' => $status->value,
+            'comment' => null,
+            'created_by' => auth()->id(),
+        ]);
 
         return $order->fresh(['items', 'shop', 'user', 'payment']);
+    }
+
+    public function cancelOrder(Order $order): Order
+    {
+        if (! $order->canBeCancelled()) {
+            throw new \InvalidArgumentException('This order cannot be cancelled.');
+        }
+
+        return DB::transaction(function () use ($order) {
+            $order->load('items.variant');
+
+            foreach ($order->items as $item) {
+                if ($item->variant) {
+                    $item->variant->increment('stock', $item->quantity);
+                }
+            }
+
+            $order->update(['status' => OrderStatus::Cancelled->value]);
+
+            $order->statusHistories()->create([
+                'status' => OrderStatus::Cancelled->value,
+                'comment' => 'Cancelled by customer',
+                'created_by' => auth()->id(),
+            ]);
+
+            return $order->fresh(['items', 'shop', 'user', 'payment', 'shippingAddress']);
+        });
     }
 
     public function getEstimatedDelivery(Order $order): string

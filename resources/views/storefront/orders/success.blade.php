@@ -85,7 +85,7 @@
 
     <div class="flex flex-col sm:flex-row gap-3 justify-center">
       <a href="{{ route('products.index') }}" class="btn-primary px-8 py-3">Continue Shopping</a>
-      <a href="{{ route('orders.index') }}" class="btn-secondary px-8 py-3">View My Orders</a>
+      <a href="{{ route('account.orders.index') }}" class="btn-secondary px-8 py-3">View My Orders</a>
     </div>
   </div>
 </x-layouts.app>

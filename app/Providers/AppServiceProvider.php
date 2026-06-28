@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Contracts\SmsServiceInterface;
 use App\Models\Category;
 use App\Services\CartService;
+use App\Services\DynamicConfigService;
 use App\Services\Sms\MockSmsService;
 use App\Services\Sms\TwilioSmsService;
 use Illuminate\Auth\Events\Registered;
@@ -27,6 +28,12 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        try {
+            app(DynamicConfigService::class)->apply();
+        } catch (\Throwable) {
+            // Settings table may not exist during install
+        }
+
         Event::listen(Registered::class, SendEmailVerificationNotification::class);
 
         View::composer('layouts.frontend', function ($view) {

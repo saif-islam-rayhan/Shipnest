@@ -23,6 +23,8 @@ class Banner extends Model
     {
         return [
             'sort_order' => 'integer',
+            'starts_at' => 'datetime',
+            'ends_at' => 'datetime',
         ];
     }
 

@@ -75,6 +75,7 @@ class CodService extends PaymentGateway
                 'type' => 'cod_shipping_upfront',
                 'reference' => $reference,
                 'shipping_method' => $shippingPaymentMethod,
+                'order_ids' => $options['order_ids'] ?? [$order->id],
             ],
         ]);
 

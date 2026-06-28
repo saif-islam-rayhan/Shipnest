@@ -16,7 +16,7 @@ abstract class PaymentGateway
 
     abstract public function method(): PaymentMethod;
 
-    protected function createPaymentRecord(Order $order, User $user, string $transactionId): PaymentTransaction
+    protected function createPaymentRecord(Order $order, User $user, string $transactionId, array $meta = []): PaymentTransaction
     {
         return PaymentTransaction::query()->create([
             'order_id' => $order->id,
@@ -25,8 +25,13 @@ abstract class PaymentGateway
             'method' => $this->method()->value,
             'status' => 'processing',
             'amount' => $order->total,
-            'gateway_response' => [],
+            'gateway_response' => $meta,
         ]);
+    }
+
+    public function isConfigured(): bool
+    {
+        return true;
     }
 
     protected function generateTransactionId(): string

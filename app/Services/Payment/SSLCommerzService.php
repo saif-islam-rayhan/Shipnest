@@ -16,10 +16,27 @@ class SSLCommerzService extends PaymentGateway
         return PaymentMethod::Sslcommerz;
     }
 
+    public function isConfigured(): bool
+    {
+        return filled(config('payment.sslcommerz.store_id'))
+            && filled(config('payment.sslcommerz.store_password'));
+    }
+
     public function initiate(Order $order, User $user, ?string $reference = null, array $options = []): array
     {
+        if (! $this->isConfigured()) {
+            return [
+                'success' => false,
+                'message' => 'SSLCommerz is not configured.',
+            ];
+        }
+
         $transactionId = $this->generateTransactionId();
-        $payment = $this->createPaymentRecord($order, $user, $transactionId);
+        $orderIds = $options['order_ids'] ?? [$order->id];
+        $payment = $this->createPaymentRecord($order, $user, $transactionId, [
+            'order_ids' => $orderIds,
+            'type' => 'sslcommerz',
+        ]);
 
         $postData = [
             'store_id' => config('payment.sslcommerz.store_id'),
@@ -30,6 +47,7 @@ class SSLCommerzService extends PaymentGateway
             'success_url' => route('payment.callback', ['gateway' => 'sslcommerz', 'status' => 'success']),
             'fail_url' => route('payment.callback', ['gateway' => 'sslcommerz', 'status' => 'fail']),
             'cancel_url' => route('payment.callback', ['gateway' => 'sslcommerz', 'status' => 'cancel']),
+            'ipn_url' => route('payment.ipn', ['gateway' => 'sslcommerz']),
             'cus_name' => $user->name,
             'cus_email' => $user->email,
             'cus_phone' => $user->phone ?? '01700000000',

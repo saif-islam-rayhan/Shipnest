@@ -4,43 +4,44 @@ namespace App\Http\Controllers\Merchant;
 
 use App\Enums\ShopStatus;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Merchant\StoreProductRequest;
+use App\Http\Controllers\Merchant\Concerns\InteractsWithShop;
 use App\Http\Requests\Merchant\StoreShopRequest;
-use App\Models\Brand;
-use App\Models\Category;
 use App\Models\Order;
-use App\Models\Product;
+use App\Services\Merchant\MerchantAnalyticsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
+    use InteractsWithShop;
+
+    public function __construct(
+        private readonly MerchantAnalyticsService $analytics,
+    ) {}
+
     public function index(Request $request): View|RedirectResponse
     {
-        $shop = $request->user()->shop;
+        $shop = $this->shop($request);
+        $shop->wallet()->firstOrCreate(['balance' => 0]);
 
-        if (! $shop) {
-            return redirect()->route('merchant.shop.create');
-        }
-
+        $today = now()->startOfDay();
         $stats = [
+            'today_orders' => Order::query()->forShop($shop->id)->where('created_at', '>=', $today)->count(),
+            'total_revenue' => (float) $shop->orderItems()
+                ->whereHas('order', fn ($q) => $q->whereIn('payment_status', ['completed', 'paid']))
+                ->sum('total'),
+            'pending_orders' => Order::query()->forShop($shop->id)->where('status', 'pending')->count(),
+            'low_stock' => $shop->products()->whereHas('variants', fn ($q) => $q->where('stock', '<=', 5)->where('status', 'active'))->count(),
             'total_products' => $shop->products()->count(),
-            'total_orders' => $shop->orders()->count(),
-            'pending_orders' => $shop->orders()->where('status', 'pending')->count(),
-            'revenue' => $shop->orders()->where('payment_status', 'completed')->sum('total'),
         ];
 
-        $recentOrders = Order::query()
-            ->with(['user', 'items'])
-            ->forShop($shop->id)
-            ->latest()
-            ->limit(10)
-            ->get();
+        $chart = $this->analytics->revenueLast30Days($shop);
+        $recentOrders = Order::query()->with(['user'])->forShop($shop->id)->latest()->limit(8)->get();
+        $lowStockProducts = $this->analytics->lowStockProducts($shop);
 
-        return view('merchant.dashboard', compact('shop', 'stats', 'recentOrders'));
+        return view('merchant.dashboard', compact('shop', 'stats', 'chart', 'recentOrders', 'lowStockProducts'));
     }
 
     public function createShop(): View
@@ -60,70 +61,18 @@ class DashboardController extends Controller
             $data['banner'] = $request->file('banner')->store('shops/banners', 'public');
         }
 
-        $request->user()->shop()->create([
-            ...$data,
-            'slug' => Str::slug($data['name']),
+        $request->user()->merchant()->create([
+            'shop_name' => $data['name'],
+            'shop_slug' => Str::slug($data['name']),
+            'description' => $data['description'] ?? null,
+            'phone' => $data['phone'] ?? null,
+            'address' => $data['address'] ?? null,
+            'district' => $data['district'] ?? $data['city'] ?? null,
+            'logo' => $data['logo'] ?? null,
+            'banner' => $data['banner'] ?? null,
             'status' => ShopStatus::Pending,
         ]);
 
-        return redirect()->route('merchant.dashboard')->with('success', 'Shop created successfully. Awaiting approval.');
-    }
-
-    public function products(Request $request): View
-    {
-        $shop = $request->user()->shop;
-        $products = $shop->products()
-            ->with(['category', 'brand', 'images'])
-            ->latest()
-            ->paginate(20);
-
-        return view('merchant.products.index', compact('shop', 'products'));
-    }
-
-    public function createProduct(Request $request): View
-    {
-        $categories = Category::query()->active()->orderBy('name')->get();
-        $brands = Brand::query()->active()->orderBy('name')->get();
-
-        return view('merchant.products.create', compact('categories', 'brands'));
-    }
-
-    public function storeProduct(StoreProductRequest $request): RedirectResponse
-    {
-        $shop = $request->user()->shop;
-        $data = $request->validated();
-        unset($data['images']);
-
-        $product = $shop->products()->create([
-            ...$data,
-            'slug' => Str::slug($data['name']),
-        ]);
-
-        if ($request->hasFile('images')) {
-            foreach ($request->file('images') as $index => $image) {
-                $path = $image->store('products', 'public');
-                $product->images()->create([
-                    'path' => $path,
-                    'is_primary' => $index === 0,
-                    'sort_order' => $index,
-                ]);
-            }
-        }
-
-        $shop->increment('total_products');
-
-        return redirect()->route('merchant.products.index')->with('success', 'Product created successfully.');
-    }
-
-    public function orders(Request $request): View
-    {
-        $shop = $request->user()->shop;
-        $orders = Order::query()
-            ->with(['user', 'items'])
-            ->forShop($shop->id)
-            ->latest()
-            ->paginate(20);
-
-        return view('merchant.orders.index', compact('shop', 'orders'));
+        return redirect()->route('merchant.pending')->with('success', 'Shop submitted for approval.');
     }
 }

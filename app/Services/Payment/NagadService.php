@@ -16,14 +16,24 @@ class NagadService extends PaymentGateway
         return PaymentMethod::Nagad;
     }
 
+    public function isConfigured(): bool
+    {
+        return filled(config('payment.nagad.merchant_id'))
+            && filled(config('payment.nagad.private_key'));
+    }
+
     public function initiate(Order $order, User $user, ?string $reference = null, array $options = []): array
     {
-        if ($reference) {
-            return $this->initiateManual($order, $user, $reference);
+        if ($reference || ! $this->isConfigured()) {
+            return $this->initiateManual($order, $user, $reference ?? '', $options);
         }
 
         $transactionId = $this->generateTransactionId();
-        $payment = $this->createPaymentRecord($order, $user, $transactionId);
+        $orderIds = $options['order_ids'] ?? [$order->id];
+        $payment = $this->createPaymentRecord($order, $user, $transactionId, [
+            'order_ids' => $orderIds,
+            'type' => 'nagad_api',
+        ]);
 
         $sensitiveData = [
             'merchantId' => config('payment.nagad.merchant_id'),
@@ -69,9 +79,10 @@ class NagadService extends PaymentGateway
         ];
     }
 
-    protected function initiateManual(Order $order, User $user, string $reference): array
+    protected function initiateManual(Order $order, User $user, string $reference, array $options = []): array
     {
         $transactionId = $this->generateTransactionId();
+        $orderIds = $options['order_ids'] ?? [$order->id];
         $payment = PaymentTransaction::query()->create([
             'order_id' => $order->id,
             'user_id' => $user->id,
@@ -79,7 +90,11 @@ class NagadService extends PaymentGateway
             'method' => PaymentMethod::Nagad->value,
             'status' => PaymentStatus::Pending->value,
             'amount' => $order->total,
-            'gateway_response' => ['reference' => $reference, 'type' => 'manual'],
+            'gateway_response' => [
+                'reference' => $reference,
+                'type' => 'manual',
+                'order_ids' => $orderIds,
+            ],
         ]);
 
         $order->update([

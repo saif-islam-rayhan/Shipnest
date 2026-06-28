@@ -1,5 +1,12 @@
 <?php
 
+use App\Http\Middleware\AdminTwoFactorMiddleware;
+use App\Http\Middleware\EnsureMerchantApproved;
+use App\Http\Middleware\EnsureUserIsActive;
+use App\Http\Middleware\MerchantMiddleware;
+use App\Http\Middleware\RedirectIfAuthenticated;
+use App\Http\Middleware\RoleMiddleware;
+use App\Http\Middleware\VerifiedMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -18,12 +25,19 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->validateCsrfTokens(except: [
+            'payment/webhook/*',
+            'payment/ipn/*',
+        ]);
+
         $middleware->alias([
-            'role' => \App\Http\Middleware\RoleMiddleware::class,
-            'guest' => \App\Http\Middleware\RedirectIfAuthenticated::class,
-            'verified' => \App\Http\Middleware\VerifiedMiddleware::class,
-            'active' => \App\Http\Middleware\EnsureUserIsActive::class,
-            'merchant.approved' => \App\Http\Middleware\EnsureMerchantApproved::class,
+            'role' => RoleMiddleware::class,
+            'guest' => RedirectIfAuthenticated::class,
+            'verified' => VerifiedMiddleware::class,
+            'active' => EnsureUserIsActive::class,
+            'merchant.approved' => EnsureMerchantApproved::class,
+            'merchant' => MerchantMiddleware::class,
+            'admin.2fa' => AdminTwoFactorMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

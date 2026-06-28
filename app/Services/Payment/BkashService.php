@@ -16,14 +16,24 @@ class BkashService extends PaymentGateway
         return PaymentMethod::Bkash;
     }
 
+    public function isConfigured(): bool
+    {
+        return filled(config('payment.bkash.app_key'))
+            && filled(config('payment.bkash.app_secret'));
+    }
+
     public function initiate(Order $order, User $user, ?string $reference = null, array $options = []): array
     {
-        if ($reference) {
-            return $this->initiateManual($order, $user, $reference);
+        if ($reference || ! $this->isConfigured()) {
+            return $this->initiateManual($order, $user, $reference ?? '', $options);
         }
 
         $transactionId = $this->generateTransactionId();
-        $payment = $this->createPaymentRecord($order, $user, $transactionId);
+        $orderIds = $options['order_ids'] ?? [$order->id];
+        $payment = $this->createPaymentRecord($order, $user, $transactionId, [
+            'order_ids' => $orderIds,
+            'type' => 'bkash_api',
+        ]);
         $token = $this->getAccessToken();
 
         if (! $token) {
@@ -70,9 +80,10 @@ class BkashService extends PaymentGateway
         ];
     }
 
-    protected function initiateManual(Order $order, User $user, string $reference): array
+    protected function initiateManual(Order $order, User $user, string $reference, array $options = []): array
     {
         $transactionId = $this->generateTransactionId();
+        $orderIds = $options['order_ids'] ?? [$order->id];
         $payment = PaymentTransaction::query()->create([
             'order_id' => $order->id,
             'user_id' => $user->id,
@@ -80,7 +91,11 @@ class BkashService extends PaymentGateway
             'method' => PaymentMethod::Bkash->value,
             'status' => PaymentStatus::Pending->value,
             'amount' => $order->total,
-            'gateway_response' => ['reference' => $reference, 'type' => 'manual'],
+            'gateway_response' => [
+                'reference' => $reference,
+                'type' => 'manual',
+                'order_ids' => $orderIds,
+            ],
         ]);
 
         $order->update([

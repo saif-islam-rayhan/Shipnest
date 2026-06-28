@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\CustomerWallet;
 use App\Models\User;
 use App\Models\UserAddress;
 use Illuminate\Database\Seeder;
@@ -28,6 +29,11 @@ class CustomerSeeder extends Seeder
             if (! $user->hasRole('customer')) {
                 $user->assignRole('customer');
             }
+
+            CustomerWallet::query()->firstOrCreate(
+                ['user_id' => $user->id],
+                ['balance' => 0],
+            );
 
             UserAddress::query()->firstOrCreate(
                 ['user_id' => $user->id, 'is_default' => true],
@@ -59,6 +65,11 @@ class CustomerSeeder extends Seeder
         if (! $demoCustomer->hasRole('customer')) {
             $demoCustomer->assignRole('customer');
         }
+
+        CustomerWallet::query()->firstOrCreate(
+            ['user_id' => $demoCustomer->id],
+            ['balance' => 0],
+        );
 
         UserAddress::query()->firstOrCreate(
             ['user_id' => $demoCustomer->id, 'is_default' => true],

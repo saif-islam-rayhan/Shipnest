@@ -5,9 +5,9 @@ namespace App\Models;
 use Illuminate\Auth\MustVerifyEmail as MustVerifyEmailTrait;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
@@ -25,6 +25,10 @@ class User extends Authenticatable implements MustVerifyEmail
         'google_id',
         'facebook_id',
         'status',
+        'notify_email',
+        'notify_sms',
+        'google2fa_secret',
+        'google2fa_enabled',
         'email_verified_at',
         'phone_verified_at',
     ];
@@ -40,6 +44,9 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'phone_verified_at' => 'datetime',
             'password' => 'hashed',
+            'notify_email' => 'boolean',
+            'notify_sms' => 'boolean',
+            'google2fa_enabled' => 'boolean',
         ];
     }
 
@@ -91,6 +98,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function returns(): HasMany
     {
         return $this->hasMany(OrderReturn::class);
+    }
+
+    public function wallet(): HasOne
+    {
+        return $this->hasOne(CustomerWallet::class);
     }
 
     public function notifications(): HasMany

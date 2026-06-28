@@ -85,6 +85,7 @@ document.addEventListener('alpine:init', () => {
         freeShippingEnabled: config.freeShippingEnabled ?? false,
         freeShippingThreshold: config.freeShippingThreshold ?? 500,
         currencySymbol: config.currencySymbol ?? '৳',
+        gatewayRedirect: config.gatewayRedirect ?? {},
         formatMoney(n) {
             return Number(n).toLocaleString('en-BD', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
         },
@@ -96,8 +97,15 @@ document.addEventListener('alpine:init', () => {
             this.total = Math.max(0, this.subtotal - this.discount + this.shipping);
         },
         validateBeforeSubmit() {
-            if (['bkash', 'nagad'].includes(this.paymentMethod) && !this.paymentReference.trim()) {
+            if (['bkash', 'nagad'].includes(this.paymentMethod)
+                && !this.gatewayRedirect[this.paymentMethod]
+                && !this.paymentReference.trim()) {
                 alert('Please enter your payment reference number.');
+                this.step = 3;
+                return false;
+            }
+            if (this.paymentMethod === 'stripe' && !this.gatewayRedirect.stripe) {
+                alert('Stripe is not available. Choose another payment method.');
                 this.step = 3;
                 return false;
             }

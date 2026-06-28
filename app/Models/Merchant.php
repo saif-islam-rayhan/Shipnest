@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Enums\ShopStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Merchant extends Model
 {
@@ -28,6 +30,10 @@ class Merchant extends Model
         'rating',
         'is_verified',
         'status',
+        'nid_number',
+        'trade_license',
+        'rejection_reason',
+        'rejected_at',
     ];
 
     protected function casts(): array
@@ -38,6 +44,8 @@ class Merchant extends Model
             'total_sales' => 'decimal:2',
             'rating' => 'decimal:2',
             'is_verified' => 'boolean',
+            'status' => ShopStatus::class,
+            'rejected_at' => 'datetime',
         ];
     }
 
@@ -93,7 +101,7 @@ class Merchant extends Model
         )->distinct();
     }
 
-    public function wallet(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function wallet(): HasOne
     {
         return $this->hasOne(MerchantWallet::class);
     }
@@ -101,6 +109,11 @@ class Merchant extends Model
     public function walletTransactions(): HasMany
     {
         return $this->hasMany(MerchantWalletTransaction::class);
+    }
+
+    public function withdrawalRequests(): HasMany
+    {
+        return $this->hasMany(MerchantWithdrawalRequest::class);
     }
 
     public function scopeActive($query)

@@ -34,6 +34,7 @@ class Order extends Model
         'shipping_method',
         'payment_reference',
         'note',
+        'delivered_at',
     ];
 
     protected function casts(): array
@@ -47,6 +48,7 @@ class Order extends Model
             'status' => OrderStatus::class,
             'payment_method' => PaymentMethod::class,
             'payment_status' => PaymentStatus::class,
+            'delivered_at' => 'datetime',
         ];
     }
 
@@ -165,6 +167,32 @@ class Order extends Model
     public function scopeCancelled($query)
     {
         return $query->where('status', 'cancelled');
+    }
+
+    public function scopeReturned($query)
+    {
+        return $query->whereHas('returns');
+    }
+
+    public function canBeCancelled(): bool
+    {
+        return $this->status === OrderStatus::Pending;
+    }
+
+    public function canRequestReturn(): bool
+    {
+        if ($this->status !== OrderStatus::Delivered) {
+            return false;
+        }
+
+        $deliveredAt = $this->delivered_at
+            ?? $this->statusHistories()->where('status', OrderStatus::Delivered->value)->latest()->value('created_at');
+
+        if (! $deliveredAt) {
+            return false;
+        }
+
+        return now()->diffInDays($deliveredAt) <= 7;
     }
 
     public function getAmountDueOnDeliveryAttribute(): float

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ProductStatus;
 use App\Models\Concerns\FormatsCurrency;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -23,9 +24,12 @@ class Product extends Model
         'short_description',
         'thumbnail',
         'status',
+        'approval_status',
         'is_featured',
         'warranty',
         'tags',
+        'meta_title',
+        'meta_description',
     ];
 
     protected function casts(): array
@@ -33,6 +37,7 @@ class Product extends Model
         return [
             'is_featured' => 'boolean',
             'tags' => 'array',
+            'status' => ProductStatus::class,
         ];
     }
 

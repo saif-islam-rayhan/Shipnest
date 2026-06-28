@@ -31,12 +31,18 @@ class CheckoutController extends Controller
 
         $groupedItems = $this->cartService->getItemsGroupedByShop($cart);
         $addresses = $request->user()->addresses()->latest()->get();
-        $paymentMethods = PaymentMethod::cases();
+        $paymentMethods = PaymentMethod::available();
         $shippingMethods = config('shipping.methods', []);
         $merchantNumbers = config('payment.merchant_numbers', []);
         $cartTotals = $this->cartService->getTotals($cart);
         $shippingMethod = old('shipping_method', 'standard');
         $orderTotals = $this->orderService->calculateTotal($cart, $shippingMethod, $cart->coupon_code);
+        $gatewayRedirect = [
+            'bkash' => $this->paymentService->gatewaySupportsRedirect(PaymentMethod::Bkash),
+            'nagad' => $this->paymentService->gatewaySupportsRedirect(PaymentMethod::Nagad),
+            'sslcommerz' => $this->paymentService->gatewaySupportsRedirect(PaymentMethod::Sslcommerz),
+            'stripe' => $this->paymentService->gatewaySupportsRedirect(PaymentMethod::Stripe),
+        ];
 
         return view('storefront.checkout.index', compact(
             'cart',
@@ -47,6 +53,7 @@ class CheckoutController extends Controller
             'merchantNumbers',
             'cartTotals',
             'orderTotals',
+            'gatewayRedirect',
         ));
     }
 
@@ -56,7 +63,9 @@ class CheckoutController extends Controller
         $paymentMethod = PaymentMethod::from($validated['payment_method']);
         $paymentReference = $validated['payment_reference'] ?? null;
 
-        if (in_array($paymentMethod, [PaymentMethod::Bkash, PaymentMethod::Nagad], true) && empty($paymentReference)) {
+        if (in_array($paymentMethod, [PaymentMethod::Bkash, PaymentMethod::Nagad], true)
+            && empty($paymentReference)
+            && ! $this->paymentService->gatewaySupportsRedirect($paymentMethod)) {
             return back()->with('error', 'Please enter your payment reference number.')->withInput();
         }
 
@@ -68,6 +77,7 @@ class CheckoutController extends Controller
 
         $firstOrder = $orders->first();
         $firstOrder->setAttribute('total', $orders->sum('total'));
+        $orderIds = $orders->pluck('id')->all();
 
         $shippingCharge = (float) $orders->sum('shipping_charge');
 
@@ -80,6 +90,10 @@ class CheckoutController extends Controller
             }
         }
 
+        if ($paymentMethod === PaymentMethod::Stripe && ! $this->paymentService->gatewaySupportsRedirect($paymentMethod)) {
+            return back()->with('error', 'Stripe payments are not enabled. Contact support.')->withInput();
+        }
+
         $result = $this->paymentService->initiate(
             $firstOrder,
             $request->user(),
@@ -87,6 +101,7 @@ class CheckoutController extends Controller
             $paymentReference,
             [
                 'cod_shipping_payment' => $validated['cod_shipping_payment'] ?? null,
+                'order_ids' => $orderIds,
             ],
         );
 
@@ -96,7 +111,7 @@ class CheckoutController extends Controller
         }
 
         return redirect()
-            ->route('orders.show', $firstOrder)
+            ->route('account.orders.show', $firstOrder->order_number)
             ->with('error', $result['message'] ?? 'Checkout completed with payment issues.');
     }
 }
