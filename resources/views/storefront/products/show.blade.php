@@ -23,7 +23,8 @@
                  class="w-full h-full object-cover transition-transform duration-200 origin-center"
                  :style="zoomStyle">
           @elseif($product->primary_image_url)
-            <img src="{{ $product->primary_image_url }}" alt="{{ $product->name }}" class="w-full h-full object-cover">
+            <img src="{{ $product->primary_image_url }}" alt="{{ $product->name }}"
+                 class="w-full h-full object-cover" loading="lazy" decoding="async" referrerpolicy="no-referrer">
           @else
             <div class="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">No image</div>
           @endif
@@ -34,7 +35,8 @@
               <button type="button" @click="activeImage = {{ $index }}"
                       class="w-16 h-16 flex-shrink-0 rounded border-2 overflow-hidden transition"
                       :class="activeImage === {{ $index }} ? 'border-primary' : 'border-gray-200'">
-                <img src="{{ asset('storage/'.$image->image_path) }}" alt="" class="w-full h-full object-cover">
+                <img src="{{ $image->url }}" alt="" class="w-full h-full object-cover"
+                     loading="lazy" decoding="async" referrerpolicy="no-referrer">
               </button>
             @endforeach
           </div>
@@ -319,7 +321,7 @@
   <script>
     function productDetail(variants, defaultId) {
       const images = @json($product->images->isNotEmpty()
-        ? $product->images->map(fn ($img) => asset('storage/'.$img->image_path))->values()
+        ? $product->images->map(fn ($img) => $img->url)->values()
         : ($product->primary_image_url ? [$product->primary_image_url] : []));
 
       return {

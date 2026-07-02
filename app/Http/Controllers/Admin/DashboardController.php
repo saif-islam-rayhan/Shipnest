@@ -14,6 +14,7 @@ class DashboardController extends Controller
         private readonly AdminAnalyticsService $analytics,
     ) {}
 
+
     public function index(): View
     {
         $stats = $this->analytics->dashboardStats();

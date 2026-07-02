@@ -37,8 +37,10 @@
       @endforeach
     </nav>
 
-    <form action="{{ route('checkout.store') }}" method="POST" @submit="return validateBeforeSubmit()">
+    <form action="{{ route('checkout.store') }}" method="POST" novalidate @submit="return validateBeforeSubmit()">
       @csrf
+      <input type="hidden" name="payment_method" :value="paymentMethod">
+      <input type="hidden" name="shipping_method" :value="shippingMethod">
 
       {{-- Step 1: Address --}}
       <div x-show="step === 1" x-transition class="space-y-6">
@@ -114,7 +116,7 @@
             @foreach($shippingMethods as $key => $method)
               <label class="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:border-primary has-[:checked]:border-primary has-[:checked]:bg-primary-50">
                 <div class="flex items-center gap-3">
-                  <input type="radio" name="shipping_method" value="{{ $key }}" class="text-primary focus:ring-primary"
+                  <input type="radio" value="{{ $key }}" class="text-primary focus:ring-primary"
                     x-model="shippingMethod" @change="updateShipping('{{ $key }}', {{ $method['rate'] }})"
                     @checked($key === 'standard')>
                   <div>
@@ -141,8 +143,8 @@
           <div class="space-y-3">
             @foreach($paymentMethods as $method)
               <label class="flex items-center gap-3 p-4 border rounded-lg cursor-pointer hover:border-primary has-[:checked]:border-primary has-[:checked]:bg-primary-50">
-                <input type="radio" name="payment_method" value="{{ $method->value }}" class="text-primary focus:ring-primary"
-                  x-model="paymentMethod" @checked($loop->first)>
+                <input type="radio" value="{{ $method->value }}" class="text-primary focus:ring-primary"
+                  x-model="paymentMethod">
                 <span class="font-medium text-gray-900">{{ $method->label() }}</span>
               </label>
             @endforeach

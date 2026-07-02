@@ -11,9 +11,21 @@
     $existingImages = $product->exists ? $product->images : collect();
 @endphp
 
+@if($errors->any())
+<div class="mb-4 rounded-lg bg-red-50 border border-red-200 text-red-800 px-4 py-3 text-sm">
+    <p class="font-semibold mb-1">Please fix the following:</p>
+    <ul class="list-disc list-inside space-y-0.5">
+        @foreach($errors->all() as $error)
+            <li>{{ $error }}</li>
+        @endforeach
+    </ul>
+</div>
+@endif
+
 <form action="{{ $product->exists ? route('admin.products.update', $product) : route('admin.products.store') }}"
       method="POST" enctype="multipart/form-data"
-      x-data="productWizard(@js(['variants' => $variants, 'attributes' => $attributes, 'existingImages' => $existingImages->map(fn($i) => ['id' => $i->id, 'url' => asset('storage/'.$i->image_path)])->values()]))">
+      x-data="productWizard(@js(['variants' => $variants, 'attributes' => $attributes, 'existingImages' => $existingImages->map(fn($i) => ['id' => $i->id, 'url' => $i->url])->values()]))"
+      @submit="submitForm($event)">
     @csrf
     @if($product->exists) @method('PUT') @endif
 
@@ -46,6 +58,7 @@
             <div>
                 <label class="block text-sm font-medium mb-1">Category *</label>
                 <select name="category_id" class="input-field" required>
+                    <option value="">Select category</option>
                     @foreach($categories as $cat)
                         <option value="{{ $cat->id }}" @selected(old('category_id', $product->category_id) == $cat->id)>{{ $cat->name }}</option>
                     @endforeach
@@ -82,7 +95,14 @@
         <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center"
              @dragover.prevent @drop.prevent="handleDrop($event)">
             <p class="text-gray-500 mb-2">Drag & drop images here or click to browse</p>
+            <p class="text-xs text-gray-400 mb-3">JPG, PNG, WebP — max 2MB each, up to 8 images</p>
             <input type="file" name="images[]" multiple accept="image/*" class="mx-auto" @change="previewFiles($event)">
+        </div>
+        <div>
+            <label class="block text-sm font-medium mb-1">Or paste image URLs (one per line)</label>
+            <textarea name="image_urls" rows="3" class="input-field text-sm"
+                placeholder="https://images.unsplash.com/photo-...&#10;https://example.com/product.jpg">{{ old('image_urls') }}</textarea>
+            <p class="text-xs text-gray-400 mt-1">Useful for external product photos without uploading files.</p>
         </div>
         <div class="grid grid-cols-3 md:grid-cols-5 gap-3">
             <template x-for="(img, i) in previews" :key="i">
@@ -115,7 +135,7 @@
                 <input type="hidden" :name="'variants['+i+'][id]'" :value="variant.id || ''">
                 <input type="text" :name="'variants['+i+'][name]'" x-model="variant.name" placeholder="Variant name" class="input-field">
                 <input type="text" :name="'variants['+i+'][sku]'" x-model="variant.sku" placeholder="SKU" class="input-field">
-                <input type="number" :name="'variants['+i+'][price]'" x-model="variant.price" placeholder="Sale price" class="input-field" step="0.01" min="0">
+                <input type="number" :name="'variants['+i+'][price]'" x-model="variant.price" placeholder="Sale price *" class="input-field" step="0.01" min="0" required>
                 <input type="number" :name="'variants['+i+'][compare_price]'" x-model="variant.compare_price" placeholder="Compare (was)" class="input-field" step="0.01" min="0">
                 <input type="number" :name="'variants['+i+'][stock]'" x-model="variant.stock" placeholder="Stock" class="input-field">
                 <div class="flex gap-1">

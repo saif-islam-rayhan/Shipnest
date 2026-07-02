@@ -32,6 +32,20 @@ class ProductImage extends Model
 
     public function getUrlAttribute(): string
     {
-        return asset('storage/'.$this->image_path);
+        return self::resolvePath($this->image_path);
+    }
+
+    public static function resolvePath(string $path): string
+    {
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        return asset('storage/'.$path);
+    }
+
+    public static function isExternalUrl(string $path): bool
+    {
+        return str_starts_with($path, 'http://') || str_starts_with($path, 'https://');
     }
 }

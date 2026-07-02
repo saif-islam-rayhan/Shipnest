@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
+use App\Enums\ProductStatus;
 use App\Jobs\SendOrderConfirmationEmail;
 use App\Models\Cart;
 use App\Models\CartItem;
@@ -83,7 +84,7 @@ class OrderService
                     $product = $cartItem->product;
                     $variant = $cartItem->variant ?? $product->defaultVariant;
 
-                    if ($product->status !== 'active' || ! $variant || $variant->stock < $cartItem->quantity) {
+                    if ($product->status !== ProductStatus::Active || ! $variant || $variant->stock < $cartItem->quantity) {
                         throw new \InvalidArgumentException("Product {$product->name} is no longer available.");
                     }
 

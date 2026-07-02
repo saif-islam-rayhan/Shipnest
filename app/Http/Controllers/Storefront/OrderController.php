@@ -55,16 +55,36 @@ class OrderController extends Controller
         return view('storefront.orders.success', compact('order', 'estimatedDelivery'));
     }
 
-    public function paymentCallback(Request $request, string $gateway): RedirectResponse
+    public function paymentCallback(Request $request, string $gateway): RedirectResponse|View
     {
-        $result = $this->paymentService->handleCallback($gateway, $request->all());
+        try {
+            $result = $this->paymentService->handleCallback(
+                $gateway,
+                $request->all(),
+                $request->query('status'),
+            );
+        } catch (\Throwable $e) {
+            report($e);
 
-        if ($result['success']) {
-            return redirect($result['redirect_url'])
-                ->with('success', 'Payment completed successfully.');
+            return redirect()
+                ->route('account.orders.index')
+                ->with('error', 'Payment could not be verified. Please check your orders or contact support.');
         }
 
-        return redirect($result['redirect_url'])
-            ->with('error', 'Payment failed or was cancelled.');
+        $flashKey = ($result['success'] ?? false) ? 'success' : 'error';
+        $flashMessage = $result['flash'] ?? (($result['success'] ?? false)
+            ? 'Payment completed successfully.'
+            : 'Payment failed or was cancelled.');
+
+        if ($request->isMethod('post')) {
+            return view('storefront.payment.redirect', [
+                'redirectUrl' => $result['redirect_url'],
+                'message' => $flashMessage,
+                'success' => (bool) ($result['success'] ?? false),
+            ]);
+        }
+
+        return redirect($result['redirect_url'])->with($flashKey, $flashMessage);
     }
+    
 }

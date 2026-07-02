@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Services\DynamicConfigService;
+use App\Services\Payment\SSLCommerzService;
 use App\Services\SettingService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -16,6 +18,7 @@ class SettingController extends Controller
     public function __construct(
         private readonly SettingService $settings,
         private readonly DynamicConfigService $dynamicConfig,
+        private readonly SSLCommerzService $sslCommerz,
     ) {}
 
     public function edit(): View
@@ -41,8 +44,10 @@ class SettingController extends Controller
             'db_username' => config('database.connections.mysql.username'),
         ]);
 
-        $payment = $this->settings->mergedGroup('payment', [
-            'sslcommerz_api_url' => config('payment.sslcommerz.api_url'),
+        $paymentDefaults = [
+            'sslcommerz_store_id' => config('payment.sslcommerz.store_id'),
+            'sslcommerz_api_url' => config('payment.sslcommerz.api_url', 'https://sandbox.sslcommerz.com'),
+            'sslcommerz_sandbox' => config('payment.sslcommerz.sandbox', true) ? '1' : '0',
             'bkash_base_url' => config('payment.bkash.base_url'),
             'nagad_base_url' => config('payment.nagad.base_url'),
             'stripe_currency' => config('payment.stripe.currency'),
@@ -51,7 +56,21 @@ class SettingController extends Controller
             'payment_bkash_enabled' => config('payment.enabled.bkash') ? '1' : '0',
             'payment_nagad_enabled' => config('payment.enabled.nagad') ? '1' : '0',
             'payment_stripe_enabled' => config('payment.enabled.stripe') ? '1' : '0',
-        ]);
+        ];
+
+        $payment = $this->settings->mergedGroup('payment', $paymentDefaults);
+        $payment = $this->fillEmptyPaymentFallbacks($payment, $paymentDefaults);
+
+        $sslPasswordInDb = $this->settings->hasSecure('sslcommerz_store_password', 'payment');
+        $sslPasswordInEnv = filled(env('SSLCOMMERZ_STORE_PASSWORD'));
+        $sslStoreIdInDb = filled($this->settings->get('sslcommerz_store_id'));
+        $sslConfigured = $this->sslCommerz->isConfigured();
+
+        $paymentMeta = [
+            'ssl_configured' => $sslConfigured,
+            'ssl_store_id_source' => $sslStoreIdInDb ? 'database' : (filled($paymentDefaults['sslcommerz_store_id']) ? 'env' : null),
+            'ssl_password_source' => $sslPasswordInDb ? 'database' : ($sslPasswordInEnv ? 'env' : null),
+        ];
 
         $mail = $this->settings->mergedGroup('mail', [
             'mail_mailer' => config('mail.default'),
@@ -91,8 +110,12 @@ class SettingController extends Controller
             }
         }
 
+        if (! $hasSecure['sslcommerz_store_password'] && $sslPasswordInEnv) {
+            $hasSecure['sslcommerz_store_password'] = true;
+        }
+
         return view('admin.settings.edit', compact(
-            'tab', 'general', 'database', 'payment', 'mail', 'sms', 'integrations', 'commission', 'hasSecure',
+            'tab', 'general', 'database', 'payment', 'paymentMeta', 'mail', 'sms', 'integrations', 'commission', 'hasSecure',
         ));
     }
 
@@ -183,6 +206,31 @@ class SettingController extends Controller
         ], 'database', ['db_password']);
     }
 
+    public function testSslCommerz(Request $request): JsonResponse
+    {
+        $request->validate([
+            'sslcommerz_store_id' => ['nullable', 'string', 'max:255'],
+            'sslcommerz_store_password' => ['nullable', 'string', 'max:255'],
+            'sslcommerz_api_url' => ['nullable', 'url'],
+        ]);
+
+        $storeId = $request->filled('sslcommerz_store_id')
+            ? $request->input('sslcommerz_store_id')
+            : config('payment.sslcommerz.store_id');
+
+        $storePassword = $request->filled('sslcommerz_store_password')
+            ? $request->input('sslcommerz_store_password')
+            : ($this->settings->getSecure('sslcommerz_store_password', 'payment')
+                ?? config('payment.sslcommerz.store_password'));
+
+        $apiUrl = $request->input('sslcommerz_api_url')
+            ?: config('payment.sslcommerz.api_url', 'https://sandbox.sslcommerz.com');
+
+        $result = $this->sslCommerz->testConnection($storeId, $storePassword, $apiUrl);
+
+        return response()->json($result, $result['success'] ? 200 : 422);
+    }
+
     protected function updatePayment(Request $request): void
     {
         $this->settings->persist($request, [
@@ -198,6 +246,31 @@ class SettingController extends Controller
             'payment_cod_enabled', 'payment_sslcommerz_enabled',
             'payment_bkash_enabled', 'payment_nagad_enabled', 'payment_stripe_enabled',
         ]);
+
+        $this->syncSslCommerzApiUrl($request);
+    }
+
+    protected function syncSslCommerzApiUrl(Request $request): void
+    {
+        $sandbox = $request->boolean('sslcommerz_sandbox');
+        $sandboxUrl = 'https://sandbox.sslcommerz.com';
+        $liveUrl = 'https://securepay.sslcommerz.com';
+        $currentUrl = $request->input('sslcommerz_api_url', '');
+
+        if ($currentUrl === '' || in_array($currentUrl, [$sandboxUrl, $liveUrl], true)) {
+            $this->settings->set('sslcommerz_api_url', $sandbox ? $sandboxUrl : $liveUrl, 'payment');
+        }
+    }
+
+    protected function fillEmptyPaymentFallbacks(array $payment, array $defaults): array
+    {
+        foreach (['sslcommerz_store_id', 'sslcommerz_api_url', 'sslcommerz_sandbox'] as $key) {
+            if (empty($payment[$key]) && filled($defaults[$key] ?? null)) {
+                $payment[$key] = $defaults[$key];
+            }
+        }
+
+        return $payment;
     }
 
     protected function updateMail(Request $request): void

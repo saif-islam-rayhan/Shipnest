@@ -46,6 +46,7 @@ class UpdateProductRequest extends FormRequest
             'image_order' => ['nullable', 'array'],
             'remove_images' => ['nullable', 'array'],
             'remove_images.*' => ['integer'],
+            'image_urls' => ['nullable', 'string', 'max:5000'],
         ];
     }
 }

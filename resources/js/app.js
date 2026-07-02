@@ -1,5 +1,6 @@
 import './bootstrap';
 import Alpine from 'alpinejs';
+import { registerProductWizard } from './product-wizard';
 
 document.addEventListener('alpine:init', () => {
     Alpine.data('cartPage', (totals = {}) => ({
@@ -97,6 +98,11 @@ document.addEventListener('alpine:init', () => {
             this.total = Math.max(0, this.subtotal - this.discount + this.shipping);
         },
         validateBeforeSubmit() {
+            if (this.paymentMethod === 'sslcommerz' && !this.gatewayRedirect.sslcommerz) {
+                alert('SSLCommerz is not configured. Choose another payment method or contact support.');
+                this.step = 3;
+                return false;
+            }
             if (['bkash', 'nagad'].includes(this.paymentMethod)
                 && !this.gatewayRedirect[this.paymentMethod]
                 && !this.paymentReference.trim()) {
@@ -124,6 +130,8 @@ document.addEventListener('alpine:init', () => {
             return true;
         },
     }));
+
+    registerProductWizard(Alpine, () => window.productQuillInstance ?? null);
 });
 
 window.Alpine = Alpine;

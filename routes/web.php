@@ -93,7 +93,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     });
 });
 
-Route::get('/payment/callback/{gateway}', [OrderController::class, 'paymentCallback'])->name('payment.callback');
+Route::match(['get', 'post'], '/payment/callback/{gateway}', [OrderController::class, 'paymentCallback'])->name('payment.callback');
 Route::post('/payment/webhook/stripe', [PaymentWebhookController::class, 'stripe'])->name('payment.webhook.stripe');
 Route::post('/payment/ipn/{gateway}', [PaymentWebhookController::class, 'ipn'])->name('payment.ipn');
 
@@ -219,6 +219,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'active', 'role:supe
     Route::post('/2fa/disable', [AdminTwoFactorController::class, 'disable'])->name('2fa.disable');
     Route::get('/2fa/challenge', [AdminTwoFactorController::class, 'challenge'])->name('2fa.challenge');
     Route::post('/2fa/verify', [AdminTwoFactorController::class, 'verify'])->name('2fa.verify');
+
 
     // Legacy redirects
     Route::redirect('/shops', '/admin/merchants?tab=pending');

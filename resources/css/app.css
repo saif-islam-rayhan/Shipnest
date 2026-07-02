@@ -10,7 +10,8 @@
 
 @layer components {
     .btn-primary {
-        @apply inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50;
+        @apply inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition
+            hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
     }
 
     .btn-secondary {
@@ -22,7 +23,110 @@
     }
 
     .input-field {
-        @apply block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm;
+        @apply block w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 shadow-sm
+            placeholder:text-gray-400
+            transition duration-150 ease-in-out
+            hover:border-gray-400
+            focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20
+            disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500;
+    }
+
+    select.input-field {
+        @apply cursor-pointer bg-white pr-10;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+        background-position: right 0.65rem center;
+        background-repeat: no-repeat;
+        background-size: 1.25em 1.25em;
+        appearance: none;
+    }
+
+    textarea.input-field {
+        @apply min-h-[88px] resize-y leading-relaxed;
+    }
+
+    .form-group {
+        @apply space-y-0;
+    }
+
+    .form-label {
+        @apply mb-1.5 block text-sm font-medium text-gray-700;
+    }
+
+    .form-label-required::after {
+        content: ' *';
+        @apply text-red-500;
+    }
+
+    .form-hint {
+        @apply mt-1.5 text-xs leading-relaxed text-gray-500;
+    }
+
+    .form-check {
+        @apply flex items-start gap-2.5 rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-3;
+    }
+
+    .form-check-input {
+        @apply mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-primary focus:ring-2 focus:ring-primary/25;
+    }
+
+    .form-check-label {
+        @apply text-sm font-medium text-gray-700;
+    }
+
+    .form-check-hint {
+        @apply mt-0.5 block text-xs text-gray-500;
+    }
+
+    .form-file {
+        @apply block w-full cursor-pointer rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3.5 py-3 text-sm text-gray-500 transition
+            hover:border-primary/40 hover:bg-primary-50/40
+            file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-primary file:px-3.5 file:py-1.5 file:text-sm file:font-semibold file:text-white file:shadow-sm
+            hover:file:bg-primary-600;
+    }
+
+    .form-section-title {
+        @apply text-base font-semibold text-gray-900;
+    }
+
+    .form-card {
+        @apply rounded-xl bg-white p-6 ring-1 ring-gray-200;
+    }
+
+    /* Admin dashboard */
+    .dash-welcome {
+        @apply relative overflow-hidden rounded-2xl bg-gradient-to-br from-secondary via-secondary-800 to-secondary-900 p-6 text-white shadow-lg lg:p-8;
+    }
+
+    .dash-stat-card {
+        @apply relative overflow-hidden rounded-xl bg-white p-5 ring-1 ring-gray-200 transition hover:shadow-md hover:ring-gray-300;
+    }
+
+    .dash-stat-icon {
+        @apply flex h-11 w-11 items-center justify-center rounded-xl;
+    }
+
+    .dash-panel {
+        @apply rounded-xl bg-white ring-1 ring-gray-200;
+    }
+
+    .dash-panel-head {
+        @apply flex items-center justify-between border-b border-gray-100 px-5 py-4;
+    }
+
+    .dash-panel-title {
+        @apply text-sm font-semibold text-gray-900;
+    }
+
+    .dash-link {
+        @apply text-sm font-medium text-primary hover:text-primary-700 hover:underline;
+    }
+
+    .dash-badge {
+        @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+    }
+
+    .dash-quick-action {
+        @apply flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 text-sm font-medium text-gray-700 transition hover:border-primary/30 hover:bg-primary-50/40 hover:text-primary;
     }
 
     .card {

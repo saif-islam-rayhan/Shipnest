@@ -5,7 +5,9 @@
     <div class="relative aspect-square bg-gray-100 overflow-hidden">
       @if($product->primary_image_url)
         <img src="{{ $product->primary_image_url }}" alt="{{ $product->name }}"
-             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+             loading="lazy" decoding="async" referrerpolicy="no-referrer"
+             onerror="this.onerror=null;this.src='https://placehold.co/400x400/f3f4f6/9ca3af/png?text=Product';">
       @else
         <div class="w-full h-full flex items-center justify-center text-gray-400">
           <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">

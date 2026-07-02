@@ -45,9 +45,14 @@ class PaymentService
         return $this->resolveGateway($method)->verify($payload);
     }
 
-    public function handleCallback(string $gateway, array $payload): array
+    public function handleCallback(string $gateway, array $payload, ?string $callbackStatus = null): array
     {
         $method = PaymentMethod::from($gateway);
+
+        if ($method === PaymentMethod::Sslcommerz && in_array($callbackStatus, ['fail', 'cancel'], true)) {
+            return $this->handleSslcommerzFailure($payload, $callbackStatus);
+        }
+
         $payment = $this->verify($method, $payload);
         $success = in_array($payment->status, [PaymentStatus::Completed->value, PaymentStatus::Paid->value], true);
 
@@ -62,6 +67,43 @@ class PaymentService
             'redirect_url' => $success
                 ? route('order.success', $payment->order->order_number)
                 : route('account.orders.show', $payment->order->order_number),
+            'flash' => $success
+                ? 'Payment completed successfully.'
+                : 'Payment failed or could not be verified.',
+        ];
+    }
+
+    protected function handleSslcommerzFailure(array $payload, string $callbackStatus): array
+    {
+        $payment = PaymentTransaction::query()
+            ->with('order')
+            ->where('transaction_id', $payload['tran_id'] ?? $payload['transaction_id'] ?? '')
+            ->first();
+
+        if ($payment) {
+            $payment->update([
+                'status' => PaymentStatus::Failed->value,
+                'gateway_response' => array_merge($payment->gateway_response ?? [], [
+                    'callback_status' => $callbackStatus,
+                    'callback_payload' => $payload,
+                ]),
+            ]);
+
+            $payment->order?->update(['payment_status' => PaymentStatus::Failed->value]);
+        }
+
+        $orderNumber = $payment?->order?->order_number;
+
+        return [
+            'success' => false,
+            'payment' => $payment,
+            'order' => $payment?->order,
+            'redirect_url' => $orderNumber
+                ? route('account.orders.show', $orderNumber)
+                : route('account.orders.index'),
+            'flash' => $callbackStatus === 'cancel'
+                ? 'Payment was cancelled.'
+                : 'Payment failed.',
         ];
     }
 

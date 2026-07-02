@@ -75,8 +75,9 @@ class CheckoutController extends Controller
             return back()->with('error', $e->getMessage())->withInput();
         }
 
-        $firstOrder = $orders->first();
-        $firstOrder->setAttribute('total', $orders->sum('total'));
+        $firstOrder = $orders->first()->load('shippingAddress');
+        $paymentAmount = (float) $orders->sum('total');
+        $firstOrder->setAttribute('total', $paymentAmount);
         $orderIds = $orders->pluck('id')->all();
 
         $shippingCharge = (float) $orders->sum('shipping_charge');
@@ -102,11 +103,18 @@ class CheckoutController extends Controller
             [
                 'cod_shipping_payment' => $validated['cod_shipping_payment'] ?? null,
                 'order_ids' => $orderIds,
+                'payment_amount' => $paymentAmount,
             ],
         );
 
         if ($result['success']) {
-            return redirect($result['redirect_url'] ?? route('order.success', $firstOrder->order_number))
+            $redirectUrl = $result['redirect_url'] ?? route('order.success', $firstOrder->order_number);
+
+            if (is_string($redirectUrl) && str_starts_with($redirectUrl, 'http')) {
+                return redirect()->away($redirectUrl);
+            }
+
+            return redirect($redirectUrl)
                 ->with('success', $result['message'] ?? 'Order placed successfully!');
         }
 

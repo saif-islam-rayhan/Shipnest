@@ -115,6 +115,12 @@ class DynamicConfigService
         $sslPass = $this->settings->getSecure('sslcommerz_store_password', 'payment');
         if ($sslPass !== null) {
             config(['payment.sslcommerz.store_password' => $sslPass]);
+        } elseif (filled(env('SSLCOMMERZ_STORE_PASSWORD'))) {
+            config(['payment.sslcommerz.store_password' => env('SSLCOMMERZ_STORE_PASSWORD')]);
+        }
+
+        if (empty($p['sslcommerz_store_id'] ?? null) && filled(env('SSLCOMMERZ_STORE_ID'))) {
+            config(['payment.sslcommerz.store_id' => env('SSLCOMMERZ_STORE_ID')]);
         }
 
         $this->setIfPresent('payment.bkash.app_key', $p['bkash_app_key'] ?? null);

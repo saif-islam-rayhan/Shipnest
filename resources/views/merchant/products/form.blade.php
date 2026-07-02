@@ -15,7 +15,7 @@
 
 <form action="{{ $product->exists ? route('merchant.products.update', $product) : route('merchant.products.store') }}"
       method="POST" enctype="multipart/form-data"
-      x-data="productWizard(@js(['variants' => $variants, 'attributes' => $attributes, 'existingImages' => $existingImages->map(fn($i) => ['id' => $i->id, 'url' => asset('storage/'.$i->image_path)])->values()]))">
+      x-data="productWizard(@js(['variants' => $variants, 'attributes' => $attributes, 'existingImages' => $existingImages->map(fn($i) => ['id' => $i->id, 'url' => $i->url])->values()]))">
     @csrf
     @if($product->exists) @method('PUT') @endif
 
@@ -77,6 +77,11 @@
              @dragover.prevent @drop.prevent="handleDrop($event)">
             <p class="text-gray-500 mb-2">Drag & drop images here or click to browse</p>
             <input type="file" name="images[]" multiple accept="image/*" class="mx-auto" @change="previewFiles($event)">
+        </div>
+        <div>
+            <label class="block text-sm font-medium mb-1">Or paste image URLs (one per line)</label>
+            <textarea name="image_urls" rows="3" class="input-field text-sm"
+                placeholder="https://images.unsplash.com/photo-...">{{ old('image_urls') }}</textarea>
         </div>
         <div class="grid grid-cols-3 md:grid-cols-5 gap-3">
             <template x-for="(img, i) in previews" :key="i">

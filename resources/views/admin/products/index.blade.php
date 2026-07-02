@@ -30,7 +30,16 @@
 <table class="admin-datatable w-full text-sm"><thead class="bg-gray-50"><tr>
     <th class="px-4 py-3 text-left">Product</th><th class="px-4 py-3">Merchant</th><th class="px-4 py-3">Price</th><th class="px-4 py-3">Discount</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">Approval</th><th class="px-4 py-3">Actions</th>
 </tr></thead><tbody>@foreach($products as $p)<tr>
-    <td class="px-4 py-3 font-medium">{{ $p->name }}</td>
+    <td class="px-4 py-3">
+        <div class="flex items-center gap-3">
+            @if($p->primary_image_url)
+                <img src="{{ $p->primary_image_url }}" alt="" class="w-10 h-10 rounded-lg object-cover bg-gray-100 shrink-0">
+            @else
+                <div class="w-10 h-10 rounded-lg bg-gray-100 shrink-0"></div>
+            @endif
+            <span class="font-medium">{{ $p->name }}</span>
+        </div>
+    </td>
     <td class="px-4 py-3">{{ $p->merchant?->shop_name }}</td>
     <td class="px-4 py-3">{{ config('shipnest.currency_symbol') }}{{ number_format($p->price) }}</td>
     <td class="px-4 py-3">@if($p->discount_percent)<span class="text-green-600">-{{ $p->discount_percent }}%</span>@else—@endif</td>

@@ -63,6 +63,7 @@ class ProductController extends Controller
             $request->input('attributes', []),
             $request->file('images', []),
             $request->input('image_order'),
+            $this->parseImageUrls($request->input('image_urls')),
         );
 
         return redirect()->route('merchant.products.index')->with('success', 'Product created successfully.');
@@ -94,6 +95,7 @@ class ProductController extends Controller
             $request->file('images', []),
             $request->input('image_order'),
             $request->input('remove_images', []),
+            $this->parseImageUrls($request->input('image_urls')),
         );
 
         return redirect()->route('merchant.products.index')->with('success', 'Product updated successfully.');
@@ -143,5 +145,17 @@ class ProductController extends Controller
         }
 
         return back()->with('success', 'Bulk action completed.');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected function parseImageUrls(?string $raw): array
+    {
+        if (! $raw) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $raw) ?: [])));
     }
 }

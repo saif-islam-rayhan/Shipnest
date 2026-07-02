@@ -61,6 +61,7 @@ class ProductController extends Controller
             $request->input('attributes', []),
             $request->file('images', []),
             $request->input('image_order'),
+            $this->parseImageUrls($request->input('image_urls')),
         );
 
         $this->syncAdminFields($product, $request);
@@ -99,6 +100,7 @@ class ProductController extends Controller
             $request->file('images', []),
             $request->input('image_order'),
             $request->input('remove_images', []),
+            $this->parseImageUrls($request->input('image_urls')),
         );
 
         $this->syncAdminFields($product->fresh(), $request);
@@ -148,5 +150,17 @@ class ProductController extends Controller
             'approval_status' => $request->input('approval_status', 'approved'),
             'is_featured' => $request->boolean('is_featured'),
         ]);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected function parseImageUrls(?string $raw): array
+    {
+        if (! $raw) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $raw) ?: [])));
     }
 }

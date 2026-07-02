@@ -167,14 +167,19 @@ class Product extends Model
     public function getPrimaryImageUrlAttribute(): ?string
     {
         if ($this->thumbnail) {
-            return asset('storage/'.$this->thumbnail);
+            return $this->resolveImagePath($this->thumbnail);
         }
 
         $image = $this->relationLoaded('images')
             ? $this->images->first()
             : $this->images()->orderBy('sort_order')->first();
 
-        return $image ? asset('storage/'.$image->image_path) : null;
+        return $image ? ProductImage::resolvePath($image->image_path) : null;
+    }
+
+    private function resolveImagePath(string $path): string
+    {
+        return ProductImage::resolvePath($path);
     }
 
     public function getStockAttribute(): int

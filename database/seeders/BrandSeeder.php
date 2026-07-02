@@ -31,6 +31,20 @@ class BrandSeeder extends Seeder
             ['name' => 'OnePlus', 'featured' => false],
             ['name' => 'H&M', 'featured' => false],
             ['name' => 'Zara', 'featured' => false],
+            ['name' => 'Fastrack', 'featured' => true],
+            ['name' => 'Awei', 'featured' => false],
+            ['name' => 'Remax', 'featured' => false],
+            ['name' => 'Baseus', 'featured' => false],
+            ['name' => 'Havit', 'featured' => false],
+            ['name' => 'Lakme', 'featured' => true],
+            ['name' => 'Richman', 'featured' => false],
+            ['name' => 'Aarong', 'featured' => true],
+            ['name' => 'Pran', 'featured' => false],
+            ['name' => 'ACI', 'featured' => false],
+            ['name' => 'Anker', 'featured' => true],
+            ['name' => 'Boat', 'featured' => false],
+            ['name' => 'Titan', 'featured' => false],
+            ['name' => 'Levi\'s', 'featured' => false],
         ];
 
         foreach ($brands as $brand) {

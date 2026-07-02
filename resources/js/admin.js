@@ -2,25 +2,89 @@
 window.initAdminLineChart = function (id) {
     const el = document.getElementById(id);
     if (!el || typeof Chart === 'undefined') return;
+
+    const ctx = el.getContext('2d');
+    const gradient = ctx.createLinearGradient(0, 0, 0, 280);
+    gradient.addColorStop(0, 'rgba(245, 124, 0, 0.28)');
+    gradient.addColorStop(1, 'rgba(245, 124, 0, 0.02)');
+
     new Chart(el, {
         type: 'line',
         data: {
             labels: JSON.parse(el.dataset.labels || '[]'),
-            datasets: [{ data: JSON.parse(el.dataset.values || '[]'), borderColor: '#F57C00', backgroundColor: 'rgba(245,124,0,0.1)', fill: true, tension: 0.3 }],
+            datasets: [{
+                data: JSON.parse(el.dataset.values || '[]'),
+                borderColor: '#F57C00',
+                backgroundColor: gradient,
+                fill: true,
+                tension: 0.35,
+                borderWidth: 2.5,
+                pointRadius: 0,
+                pointHoverRadius: 5,
+                pointHoverBackgroundColor: '#F57C00',
+                pointHoverBorderColor: '#fff',
+                pointHoverBorderWidth: 2,
+            }],
         },
-        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#111827',
+                    titleFont: { size: 12, weight: '600' },
+                    bodyFont: { size: 12 },
+                    padding: 10,
+                    cornerRadius: 8,
+                },
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#9CA3AF', maxTicksLimit: 8, font: { size: 11 } },
+                    border: { display: false },
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(0,0,0,0.04)' },
+                    ticks: { color: '#9CA3AF', font: { size: 11 } },
+                    border: { display: false },
+                },
+            },
+        },
     });
 };
+
 window.initAdminDonutChart = function (id) {
     const el = document.getElementById(id);
     if (!el || typeof Chart === 'undefined') return;
+
     new Chart(el, {
         type: 'doughnut',
         data: {
             labels: JSON.parse(el.dataset.labels || '[]'),
-            datasets: [{ data: JSON.parse(el.dataset.values || '[]'), backgroundColor: ['#F57C00', '#1A237E', '#4CAF50', '#2196F3', '#9C27B0', '#F44336'] }],
+            datasets: [{
+                data: JSON.parse(el.dataset.values || '[]'),
+                backgroundColor: ['#F57C00', '#1A237E', '#10B981', '#3B82F6', '#8B5CF6', '#EF4444', '#6B7280'],
+                borderWidth: 0,
+                hoverOffset: 6,
+            }],
         },
-        options: { responsive: true },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '68%',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#111827',
+                    padding: 10,
+                    cornerRadius: 8,
+                },
+            },
+        },
     });
 };
 window.initAdminQuill = function () {
@@ -51,42 +115,12 @@ window.initProductQuill = function () {
         },
     });
 
+    window.productQuillInstance = productQuillInstance;
+
     if (input?.value) {
         productQuillInstance.root.innerHTML = input.value;
     }
 };
-
-document.addEventListener('alpine:init', () => {
-    Alpine.data('productWizard', (config = {}) => ({
-        step: 1,
-        variants: config.variants?.length ? config.variants : [{ name: 'Default', sku: '', price: '', compare_price: '', stock: 0, weight: '' }],
-        attributes: config.attributes?.length ? config.attributes : [],
-        existingImages: config.existingImages || [],
-        previews: [],
-        mainImage: 0,
-        previewFiles(e) {
-            Array.from(e.target.files).forEach((file) => {
-                this.previews.push({ url: URL.createObjectURL(file), file });
-            });
-        },
-        handleDrop(e) {
-            const input = e.target.closest('div').querySelector('input[type=file]');
-            if (input && e.dataTransfer.files.length) {
-                input.files = e.dataTransfer.files;
-                this.previewFiles({ target: input });
-            }
-        },
-        setMain(i) {
-            this.mainImage = i;
-        },
-        syncQuill() {
-            const input = document.getElementById('description-input');
-            if (productQuillInstance && input) {
-                input.value = productQuillInstance.root.innerHTML;
-            }
-        },
-    }));
-});
 
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.admin-datatable').forEach(el => {

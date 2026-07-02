@@ -207,6 +207,193 @@ class ProductService
         return $builder->paginate($perPage)->withQueryString();
     }
 
+    /**
+     * Agent catalog search — multi-keyword OR match with relevance ranking.
+     * "watch" matches "Smart Watch Series 8", "smart watch" matches full phrase.
+     */
+    public function agentCatalogSearch(
+        string $query,
+        ?float $minPrice = null,
+        ?float $maxPrice = null,
+        int $perPage = 8,
+    ): LengthAwarePaginator {
+        $query = trim($query);
+        $lower = strtolower($query);
+        $words = array_values(array_filter(
+            preg_split('/\s+/', $lower) ?: [],
+            fn ($w) => mb_strlen($w) >= 2,
+        ));
+
+        $builder = Product::query()
+            ->with(['images', 'merchant', 'category', 'brand', 'defaultVariant'])
+            ->withAvg('reviews', 'rating')
+            ->withCount('reviews')
+            ->active()
+            ->inStock();
+
+        if ($query !== '') {
+            $builder->where(function (Builder $q) use ($query, $words) {
+                $q->where('name', 'like', "%{$query}%")
+                    ->orWhere('short_description', 'like', "%{$query}%")
+                    ->orWhere('description', 'like', "%{$query}%")
+                    ->orWhere('sku', 'like', "%{$query}%")
+                    ->orWhereHas('brand', fn (Builder $b) => $b->where('name', 'like', "%{$query}%"))
+                    ->orWhereHas('category', fn (Builder $c) => $c->where('name', 'like', "%{$query}%"));
+
+                foreach ($words as $word) {
+                    $q->orWhere('name', 'like', "%{$word}%")
+                        ->orWhere('short_description', 'like', "%{$word}%")
+                        ->orWhereHas('brand', fn (Builder $b) => $b->where('name', 'like', "%{$word}%"));
+                }
+            });
+
+            $likeStart = $lower.'%';
+            $likeContains = '%'.$lower.'%';
+            $builder->orderByRaw(
+                'CASE
+                    WHEN LOWER(name) = ? THEN 0
+                    WHEN LOWER(name) LIKE ? THEN 1
+                    WHEN LOWER(name) LIKE ? THEN 2
+                    ELSE 3
+                END',
+                [$lower, $likeStart, $likeContains],
+            );
+        }
+
+        $this->applyVariantPriceFilter($builder, $minPrice, $maxPrice);
+
+        return $builder->orderByDesc('is_featured')->latest()->paginate($perPage);
+    }
+
+    /**
+     * Related trending products from ShipNest catalog for agent UI.
+     *
+     * @param  array<int, int>  $excludeProductIds
+     * @return array<int, Product>
+     */
+    public function agentRelatedTrending(string $query, array $excludeProductIds = [], int $limit = 24): array
+    {
+        $query = trim($query);
+        $lower = strtolower($query);
+
+        $categoryIds = Product::query()
+            ->active()
+            ->inStock()
+            ->where(function (Builder $q) use ($query) {
+                $q->where('name', 'like', "%{$query}%")
+                    ->orWhere('short_description', 'like', "%{$query}%");
+            })
+            ->whereNotNull('category_id')
+            ->distinct()
+            ->pluck('category_id')
+            ->filter()
+            ->values()
+            ->all();
+
+        if ($categoryIds === []) {
+            $categoryIds = $this->guessCategoryIdsForAgentTerm($lower);
+        } else {
+            $categoryIds = $this->expandCategoryIds($categoryIds);
+        }
+
+        $builder = Product::query()
+            ->with(['images', 'merchant', 'category', 'brand', 'defaultVariant'])
+            ->withAvg('reviews', 'rating')
+            ->withCount('reviews')
+            ->active()
+            ->inStock();
+
+        if ($excludeProductIds !== []) {
+            $builder->whereNotIn('id', $excludeProductIds);
+        }
+
+        if ($categoryIds !== []) {
+            $builder->whereIn('category_id', $categoryIds);
+        } elseif (mb_strlen($lower) >= 2) {
+            $builder->where(function (Builder $q) use ($lower) {
+                $q->where('is_featured', true)
+                    ->orWhere('name', 'like', '%'.$lower.'%');
+            });
+        } else {
+            $builder->where('is_featured', true);
+        }
+
+        return $builder
+            ->orderByDesc('is_featured')
+            ->orderByDesc('reviews_count')
+            ->latest()
+            ->limit($limit)
+            ->get()
+            ->all();
+    }
+
+    /**
+     * @param  array<int, int>  $categoryIds
+     * @return array<int, int>
+     */
+    protected function expandCategoryIds(array $categoryIds): array
+    {
+        return Category::query()
+            ->whereIn('id', $categoryIds)
+            ->orWhereIn('parent_id', $categoryIds)
+            ->pluck('id')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    protected function guessCategoryIdsForAgentTerm(string $lower): array
+    {
+        $matchedKeys = [];
+
+        foreach (config('market.categories', []) as $key => $cat) {
+            foreach ($cat['trending_keywords'] ?? [] as $kw) {
+                $kwLower = strtolower($kw);
+                if (str_contains($lower, $kwLower) || str_contains($kwLower, $lower)) {
+                    $matchedKeys[] = $key;
+                    break;
+                }
+            }
+
+            if (in_array($key, $matchedKeys, true)) {
+                continue;
+            }
+
+            foreach ($cat['budget_products'] ?? [] as $budgetProduct) {
+                $prodLower = strtolower((string) ($budgetProduct['product'] ?? ''));
+                if ($prodLower !== '' && (str_contains($lower, $prodLower) || str_contains($prodLower, $lower))) {
+                    $matchedKeys[] = $key;
+                    break;
+                }
+            }
+        }
+
+        if ($matchedKeys === []) {
+            return [];
+        }
+
+        $labels = collect($matchedKeys)
+            ->map(fn (string $key) => config("market.categories.{$key}.label"))
+            ->filter()
+            ->values()
+            ->all();
+
+        $ids = Category::query()
+            ->where(function (Builder $q) use ($matchedKeys, $labels) {
+                $q->whereIn('slug', $matchedKeys);
+                if ($labels !== []) {
+                    $q->orWhereIn('name', $labels);
+                }
+            })
+            ->pluck('id')
+            ->all();
+
+        return $this->expandCategoryIds($ids);
+    }
+
     protected function applyVariantPriceFilter(Builder $query, ?float $minPrice, ?float $maxPrice): void
     {
         if ($minPrice === null && $maxPrice === null) {

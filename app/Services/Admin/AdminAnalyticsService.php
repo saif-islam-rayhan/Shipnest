@@ -14,16 +14,51 @@ class AdminAnalyticsService
     public function dashboardStats(): array
     {
         $today = now()->startOfDay();
+        $yesterday = now()->subDay()->startOfDay();
+        $paidStatuses = ['completed', 'paid'];
+
+        $revenueToday = (float) Order::query()
+            ->whereIn('payment_status', $paidStatuses)
+            ->where('created_at', '>=', $today)
+            ->sum('total');
+
+        $revenueYesterday = (float) Order::query()
+            ->whereIn('payment_status', $paidStatuses)
+            ->whereBetween('created_at', [$yesterday, $today])
+            ->sum('total');
+
+        $ordersToday = Order::query()->where('created_at', '>=', $today)->count();
+        $ordersYesterday = Order::query()
+            ->whereBetween('created_at', [$yesterday, $today])
+            ->count();
 
         return [
             'total_users' => User::query()->count(),
-            'total_merchants' => Merchant::query()->count(),
-            'orders_today' => Order::query()->where('created_at', '>=', $today)->count(),
-            'total_revenue' => (float) Order::query()->whereIn('payment_status', ['completed', 'paid'])->sum('total'),
+            'total_merchants' => Merchant::query()->where('status', 'active')->count(),
+            'total_orders' => Order::query()->count(),
+            'orders_today' => $ordersToday,
+            'orders_yesterday' => $ordersYesterday,
+            'revenue_today' => $revenueToday,
+            'revenue_yesterday' => $revenueYesterday,
+            'revenue_trend' => $this->percentChange($revenueYesterday, $revenueToday),
+            'orders_trend' => $this->percentChange($ordersYesterday, $ordersToday),
+            'total_revenue' => (float) Order::query()->whereIn('payment_status', $paidStatuses)->sum('total'),
             'active_products' => Product::query()->where('status', 'active')->count(),
+            'pending_merchants' => Merchant::query()->where('status', 'pending')->count(),
+            'pending_products' => Product::query()->where('approval_status', 'pending')->count(),
             'pending_approvals' => Merchant::query()->where('status', 'pending')->count()
                 + Product::query()->where('approval_status', 'pending')->count(),
+            'pending_orders' => Order::query()->where('status', 'pending')->count(),
         ];
+    }
+
+    private function percentChange(float $previous, float $current): ?float
+    {
+        if ($previous <= 0) {
+            return $current > 0 ? 100.0 : null;
+        }
+
+        return round((($current - $previous) / $previous) * 100, 1);
     }
 
     public function revenueLast30Days(): array
@@ -55,6 +90,7 @@ class AdminAnalyticsService
             ->select('status', DB::raw('COUNT(*) as count'))
             ->groupBy('status')
             ->pluck('count', 'status')
+            ->mapWithKeys(fn ($count, $status) => [ucfirst((string) $status) => $count])
             ->toArray();
     }
 

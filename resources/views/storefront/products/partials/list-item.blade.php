@@ -3,7 +3,9 @@
 <a href="{{ route('products.show', $product->slug) }}" class="card group flex flex-col sm:flex-row gap-4 p-4 hover:shadow-md transition-shadow">
   <div class="relative w-full sm:w-48 h-48 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
     @if($product->primary_image_url)
-      <img src="{{ $product->primary_image_url }}" alt="{{ $product->name }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+      <img src="{{ $product->primary_image_url }}" alt="{{ $product->name }}"
+           class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+           loading="lazy" decoding="async" referrerpolicy="no-referrer">
     @endif
     @if($product->discount_percentage)
       <span class="absolute top-2 left-2 badge bg-primary text-white">-{{ $product->discount_percentage }}%</span>

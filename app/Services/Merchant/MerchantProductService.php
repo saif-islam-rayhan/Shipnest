@@ -13,9 +13,9 @@ use Illuminate\Support\Str;
 
 class MerchantProductService
 {
-    public function create(Merchant $shop, array $data, array $variants, array $attributes, array $images = [], ?array $imageOrder = null): Product
+    public function create(Merchant $shop, array $data, array $variants, array $attributes, array $images = [], ?array $imageOrder = null, array $imageUrls = []): Product
     {
-        return DB::transaction(function () use ($shop, $data, $variants, $attributes, $images, $imageOrder) {
+        return DB::transaction(function () use ($shop, $data, $variants, $attributes, $images, $imageOrder, $imageUrls) {
             $product = $shop->products()->create([
                 'category_id' => $data['category_id'],
                 'brand_id' => $data['brand_id'] ?? null,
@@ -33,14 +33,16 @@ class MerchantProductService
             $this->syncVariants($product, $variants);
             $this->syncAttributes($product, $attributes);
             $this->storeImages($product, $images, $imageOrder);
+            $this->storeImageUrls($product, $imageUrls);
+            $this->updateThumbnail($product, $imageOrder);
 
             return $product->fresh(['variants', 'images', 'attributes', 'category', 'brand']);
         });
     }
 
-    public function update(Product $product, array $data, array $variants, array $attributes, array $images = [], ?array $imageOrder = null, array $removeImageIds = []): Product
+    public function update(Product $product, array $data, array $variants, array $attributes, array $images = [], ?array $imageOrder = null, array $removeImageIds = [], array $imageUrls = []): Product
     {
-        return DB::transaction(function () use ($product, $data, $variants, $attributes, $images, $imageOrder, $removeImageIds) {
+        return DB::transaction(function () use ($product, $data, $variants, $attributes, $images, $imageOrder, $removeImageIds, $imageUrls) {
             $product->update([
                 'category_id' => $data['category_id'],
                 'brand_id' => $data['brand_id'] ?? null,
@@ -59,6 +61,7 @@ class MerchantProductService
             $this->syncAttributes($product, $attributes);
             $this->removeImages($product, $removeImageIds);
             $this->storeImages($product, $images, $imageOrder);
+            $this->storeImageUrls($product, $imageUrls);
             $this->updateThumbnail($product, $imageOrder);
 
             return $product->fresh(['variants', 'images', 'attributes', 'category', 'brand']);
@@ -190,6 +193,24 @@ class MerchantProductService
         $this->updateThumbnail($product, $imageOrder);
     }
 
+    /**
+     * @param  array<int, string>  $urls
+     */
+    protected function storeImageUrls(Product $product, array $urls): void
+    {
+        foreach ($urls as $url) {
+            $url = trim((string) $url);
+            if ($url === '' || ! filter_var($url, FILTER_VALIDATE_URL)) {
+                continue;
+            }
+
+            $product->images()->create([
+                'image_path' => $url,
+                'sort_order' => $product->images()->count(),
+            ]);
+        }
+    }
+
     protected function removeImages(Product $product, array $ids): void
     {
         if (empty($ids)) {
@@ -197,7 +218,9 @@ class MerchantProductService
         }
 
         $product->images()->whereIn('id', $ids)->each(function (ProductImage $image) {
-            Storage::disk('public')->delete($image->image_path);
+            if (! ProductImage::isExternalUrl($image->image_path)) {
+                Storage::disk('public')->delete($image->image_path);
+            }
             $image->delete();
         });
     }

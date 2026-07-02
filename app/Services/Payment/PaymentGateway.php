@@ -24,7 +24,7 @@ abstract class PaymentGateway
             'transaction_id' => $transactionId,
             'method' => $this->method()->value,
             'status' => 'processing',
-            'amount' => $order->total,
+            'amount' => $meta['amount'] ?? $order->total,
             'gateway_response' => $meta,
         ]);
     }
