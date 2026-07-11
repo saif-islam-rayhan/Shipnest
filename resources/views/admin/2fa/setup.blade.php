@@ -2,6 +2,9 @@
 @section('title','2FA Setup') @section('page-title','Two-Factor Authentication')
 @section('content')
 <div class="max-w-lg bg-white rounded-xl ring-1 ring-gray-200 p-6 space-y-4">
+    @if(session('error'))
+        <p class="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{{ session('error') }}</p>
+    @endif
     <p class="text-sm text-gray-600">Scan this QR code with Google Authenticator, or enter the secret key manually.</p>
     <div class="flex justify-center p-4 bg-gray-50 rounded-lg">
         <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={{ urlencode($qrUrl) }}" alt="2FA QR Code" width="200" height="200">

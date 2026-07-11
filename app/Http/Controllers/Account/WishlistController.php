@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\Wishlist;
 use App\Services\CartService;
+use App\Services\UserInterestService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -14,6 +15,7 @@ class WishlistController extends Controller
 {
     public function __construct(
         private readonly CartService $cartService,
+        private readonly UserInterestService $userInterestService,
     ) {}
 
     public function index(Request $request): View
@@ -38,6 +40,8 @@ class WishlistController extends Controller
             'product_id' => $product->id,
             'variant_id' => $request->input('variant_id'),
         ]);
+
+        $this->userInterestService->trackWishlist($product, $request->user()->id);
 
         return back()->with('success', 'Added to wishlist.');
     }

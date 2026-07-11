@@ -7,7 +7,7 @@
 {{-- 1. Hero Banner Slider --}}
 <section class="bg-white" x-data="{
     current: 0,
-    total: {{ max($heroBanners->count(), 3) }},
+    total: {{ $heroSlideCount }},
     autoplay: null,
     init() {
         this.autoplay = setInterval(() => { this.current = (this.current + 1) % this.total; }, 5000);
@@ -16,7 +16,41 @@
 }">
     <div class="max-w-7xl mx-auto px-4 py-4">
         <div class="relative rounded-xl overflow-hidden shadow-sm aspect-[21/7] min-h-[180px] sm:min-h-[240px] md:min-h-[320px]">
-            @if($heroBanners->isNotEmpty())
+            @if($heroDiscountProducts->isNotEmpty())
+                @foreach($heroDiscountProducts as $index => $product)
+                    <a href="{{ route('products.show', $product->slug) }}"
+                       x-show="current === {{ $index }}"
+                       x-transition:enter="transition ease-out duration-500"
+                       x-transition:enter-start="opacity-0"
+                       x-transition:enter-end="opacity-100"
+                       class="absolute inset-0 block">
+                        @if($product->primary_image_url)
+                            <img src="{{ $product->primary_image_url }}" alt="{{ $product->name }}"
+                                 class="w-full h-full object-cover"
+                                 loading="{{ $index === 0 ? 'eager' : 'lazy' }}">
+                        @else
+                            <div class="w-full h-full bg-gradient-to-r from-primary to-primary-700"></div>
+                        @endif
+                        <div class="absolute inset-0 bg-gradient-to-r from-black/50 to-transparent flex items-center">
+                            <div class="px-8 md:px-12 max-w-xl">
+                                @if($product->discount_percentage)
+                                    <span class="inline-block mb-3 bg-primary text-white text-sm font-bold px-3 py-1 rounded-full">
+                                        UP TO {{ $product->discount_percentage }}% OFF
+                                    </span>
+                                @endif
+                                <h2 class="text-2xl md:text-4xl font-bold text-white drop-shadow-lg line-clamp-2">{{ $product->name }}</h2>
+                                <div class="mt-3 flex items-baseline gap-3">
+                                    <span class="text-xl md:text-2xl font-bold text-white">{{ config('shipnest.currency_symbol') }}{{ number_format($product->price) }}</span>
+                                    @if($product->compare_price && $product->compare_price > $product->price)
+                                        <span class="text-base md:text-lg text-white/70 line-through">{{ config('shipnest.currency_symbol') }}{{ number_format($product->compare_price) }}</span>
+                                    @endif
+                                </div>
+                                <span class="inline-block mt-4 btn-primary">Shop Now</span>
+                            </div>
+                        </div>
+                    </a>
+                @endforeach
+            @elseif($heroBanners->isNotEmpty())
                 @foreach($heroBanners as $index => $banner)
                     <a href="{{ $banner->link ?: route('products.index') }}"
                        x-show="current === {{ $index }}"
@@ -62,7 +96,7 @@
             </button>
 
             <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
-                @for($i = 0; $i < max($heroBanners->count(), 3); $i++)
+                @for($i = 0; $i < $heroSlideCount; $i++)
                     <button @click="current = {{ $i }}"
                             :class="current === {{ $i }} ? 'bg-primary w-6' : 'bg-white/60 w-2'"
                             class="h-2 rounded-full transition-all duration-300"></button>

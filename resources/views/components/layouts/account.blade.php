@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @stack('styles')
 </head>
 <body class="min-h-screen bg-gray-50">
     <x-layout.header />
@@ -26,6 +27,7 @@
     </div>
 
     <x-layout.footer />
+    <x-agent-fab context="public" />
     @stack('scripts')
 </body>
 </html>

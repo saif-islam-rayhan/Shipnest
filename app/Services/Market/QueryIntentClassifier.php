@@ -9,6 +9,8 @@ class QueryIntent
     public const MARKET_ANALYSIS = 'market_analysis';
 
     public const GENERAL_QA = 'general_qa';
+
+    public const PRODUCT_CREATE = 'product_create';
 }
 
 class QueryIntentClassifier
@@ -27,6 +29,24 @@ class QueryIntentClassifier
         'capital of', 'meaning of', 'কি', 'কে', 'কখন', 'কোথায়', 'কেন', 'কেমন',
     ];
 
+    private const CREATE_KW = [
+        'create product', 'add product', 'new product', 'product create', 'product add',
+        'প্রোডাক্ট তৈরি', 'পণ্য তৈরি', 'নতুন প্রোডাক্ট', 'product add koro', 'product create koro',
+    ];
+
+    public function isProductCreateIntent(string $message): bool
+    {
+        $lower = strtolower(trim($message));
+
+        foreach (self::CREATE_KW as $kw) {
+            if (str_contains($lower, $kw)) {
+                return true;
+            }
+        }
+
+        return (bool) preg_match('/\b(create|add|তৈরি)\b.*\b(product|প্রোডাক্ট|পণ্য)\b/ui', $message);
+    }
+
     public function classify(string $message, CompositeQuery $parsed): string
     {
         if ($this->isGeneralKnowledge($message, $parsed)) {
@@ -42,6 +62,14 @@ class QueryIntentClassifier
         }
 
         $lower = strtolower(trim($message));
+
+        if ($this->isProductCreateIntent($message)) {
+            return QueryIntent::PRODUCT_CREATE;
+        }
+
+        if ($this->isConversationalPhrase($message)) {
+            return QueryIntent::GENERAL_QA;
+        }
 
         foreach (self::ANALYSIS_KW as $kw) {
             if (str_contains($lower, $kw)) {
@@ -129,6 +157,47 @@ class QueryIntentClassifier
         return (bool) preg_match('/\b(what|who|when|where|why|how)\s+(is|are|was|were|do|does|did|many|much)\b/i', $lower);
     }
 
+    public function isConversationalPhrase(string $message): bool
+    {
+        $normalized = mb_strtolower(trim($message));
+        $normalized = rtrim($normalized, '!?.।');
+        $normalized = preg_replace('/\s+/u', ' ', $normalized) ?? $normalized;
+
+        if ($normalized === '' || mb_strlen($normalized) > 50) {
+            return false;
+        }
+
+        if (preg_match('/\b(help|cancel|cart|order|checkout|trending|create\s+product|view\s+cart)\b/ui', $normalized)) {
+            return false;
+        }
+
+        if (preg_match('/^(hi+|hy+|hello+|hey+|halo+|helo+|hola+|salam+|salaam+)$/ui', $normalized)) {
+            return true;
+        }
+
+        if (preg_match('/\bkemon\s+(a[csz]o|acho|achen|achis|achhen|aso|achho|achis)\b/ui', $normalized)) {
+            return true;
+        }
+
+        if (preg_match('/\b(ki\s+obostha|ki\s+obosta|ki\s+khobor|ki\s+khabar|ki\s+korcho|ki\s+koro|apni\s+kemon|tumi\s+kemon|kemon\s+acho|kemon\s+achen)\b/ui', $normalized)) {
+            return true;
+        }
+
+        if (preg_match('/(হ্যালো|হাই|নমস্কার|আসসালাম|ধন্যবাদ|কেমন\s+আছ)/u', $message)) {
+            return true;
+        }
+
+        if (preg_match('/\b(good\s+(morning|evening|afternoon|night)|thank\s*you|thanks|assalamu?\s+alaikum)\b/ui', $normalized)) {
+            return true;
+        }
+
+        if (mb_strlen($normalized) <= 20 && preg_match('/^(accha|acha|ok|okay|bhalo|valo|nice|great)$/ui', $normalized)) {
+            return true;
+        }
+
+        return false;
+    }
+
     private function looksLikeMarketQuery(string $lower): bool
     {
         foreach (self::ANALYSIS_KW as $kw) {
@@ -178,6 +247,7 @@ class QueryIntentClassifier
         return match ($intent) {
             QueryIntent::PLATFORM_SEARCH => 'Product search (ShipNest catalog)',
             QueryIntent::MARKET_ANALYSIS => 'Market analysis / trending research',
+            QueryIntent::PRODUCT_CREATE => 'Admin product creation',
             QueryIntent::GENERAL_QA => 'General Q&A',
             default => 'General Q&A',
         };

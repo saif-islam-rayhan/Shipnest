@@ -5,25 +5,23 @@
     $dueOnDelivery = $order->amount_due_on_delivery;
     $symbol = config('shipnest.currency_symbol', '৳');
   @endphp
-  <div class="max-w-lg mx-auto px-4 py-16 text-center">
-    <div class="mb-8">
-      <div class="inline-flex items-center justify-center w-24 h-24 rounded-full {{ $isConfirmed ? 'bg-green-100 animate-bounce' : 'bg-yellow-100' }}">
-        @if($isConfirmed)
-          <svg class="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-          </svg>
-        @else
-          <svg class="w-12 h-12 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
-        @endif
-      </div>
+  <div class="max-w-md mx-auto px-4 py-4 sm:py-6 text-center">
+    <div class="inline-flex items-center justify-center w-12 h-12 rounded-full {{ $isConfirmed ? 'bg-green-100' : 'bg-yellow-100' }}">
+      @if($isConfirmed)
+        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+        </svg>
+      @else
+        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      @endif
     </div>
 
-    <h1 class="text-3xl font-bold text-gray-900 mb-2">
+    <h1 class="text-xl font-bold text-gray-900 mt-2">
       {{ $isConfirmed ? 'Order Confirmed!' : 'Order Received' }}
     </h1>
-    <p class="text-gray-600 mb-6">
+    <p class="text-sm text-gray-600 mt-0.5 mb-3">
       @if($isConfirmed)
         Thank you for shopping with {{ config('shipnest.name') }}.
       @else
@@ -31,7 +29,7 @@
       @endif
     </p>
 
-    <div class="card p-6 mb-8 text-left space-y-3">
+    <div class="card p-3 sm:p-4 mb-4 text-left space-y-1.5">
       <div class="flex justify-between text-sm">
         <span class="text-gray-500">Order Number</span>
         <span class="font-semibold text-gray-900">{{ $order->order_number }}</span>
@@ -52,22 +50,16 @@
       @endif
       @if($isCod && $order->shipping_charge > 0)
         <div class="flex justify-between text-sm">
-          <span class="text-gray-500">Shipping (pay now)</span>
-          <span class="font-medium text-gray-900">{{ $symbol }}{{ number_format($order->shipping_charge) }}</span>
-        </div>
-        <div class="flex justify-between text-sm">
           <span class="text-gray-500">Pay on delivery</span>
           <span class="font-medium text-gray-900">{{ $symbol }}{{ number_format($dueOnDelivery) }}</span>
         </div>
       @endif
-      <div class="flex justify-between text-sm border-t pt-2">
+      <div class="flex justify-between text-sm border-t pt-1.5">
         <span class="text-gray-500 font-semibold">Order Total</span>
         <span class="font-bold text-primary">{{ $symbol }}{{ number_format($order->total) }}</span>
       </div>
-      @if($isCod && ! $isConfirmed && $order->shipping_charge > 0)
-        <p class="text-xs text-amber-700 bg-amber-50 p-2 rounded">Waiting for shipping payment verification. After confirmation, pay {{ $symbol }}{{ number_format($dueOnDelivery) }} in cash on delivery.</p>
-      @elseif($isCod && $isConfirmed)
-        <p class="text-xs text-green-700 bg-green-50 p-2 rounded">Shipping paid. Pay {{ $symbol }}{{ number_format($dueOnDelivery) }} in cash when your order arrives.</p>
+      @if($isCod)
+        <p class="text-xs text-green-700 bg-green-50 px-2 py-1.5 rounded">Pay {{ $symbol }}{{ number_format($dueOnDelivery) }} in cash when your order arrives.</p>
       @endif
       <div class="flex justify-between text-sm">
         <span class="text-gray-500">Estimated Delivery</span>
@@ -83,9 +75,9 @@
       </div>
     </div>
 
-    <div class="flex flex-col sm:flex-row gap-3 justify-center">
-      <a href="{{ route('products.index') }}" class="btn-primary px-8 py-3">Continue Shopping</a>
-      <a href="{{ route('account.orders.index') }}" class="btn-secondary px-8 py-3">View My Orders</a>
+    <div class="flex flex-col sm:flex-row gap-2 justify-center">
+      <a href="{{ route('products.index') }}" class="btn-primary h-10 px-5 text-sm inline-flex items-center justify-center">Continue Shopping</a>
+      <a href="{{ route('account.orders.index') }}" class="btn-secondary h-10 px-5 text-sm inline-flex items-center justify-center">View My Orders</a>
     </div>
   </div>
 </x-layouts.app>

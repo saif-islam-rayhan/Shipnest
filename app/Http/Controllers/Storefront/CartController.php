@@ -8,6 +8,7 @@ use App\Http\Requests\Cart\UpdateCartItemRequest;
 use App\Models\CartItem;
 use App\Models\Product;
 use App\Services\CartService;
+use App\Services\UserInterestService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,6 +18,7 @@ class CartController extends Controller
 {
     public function __construct(
         private readonly CartService $cartService,
+        private readonly UserInterestService $userInterestService,
     ) {}
 
     public function index(Request $request): View
@@ -43,6 +45,12 @@ class CartController extends Controller
         } catch (\InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());
         }
+
+        $this->userInterestService->trackCart(
+            $product,
+            $request->user()?->id,
+            session()->getId(),
+        );
 
         if ($request->boolean('buy_now')) {
             return redirect()->route('checkout.index')->with('success', 'Product added to cart.');

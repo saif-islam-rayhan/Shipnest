@@ -9,6 +9,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Services\ProductService;
+use App\Services\UserInterestService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -16,11 +17,12 @@ class ProductController extends Controller
 {
     public function __construct(
         private readonly ProductService $productService,
+        private readonly UserInterestService $userInterestService,
     ) {}
 
     public function index(Request $request): View
     {
-        return $this->renderListing($request);
+        return $this->renderListing($request, personalizeOrder: true);
     }
 
     public function category(Request $request, string $slug): View
@@ -39,12 +41,18 @@ class ProductController extends Controller
 
     public function search(Request $request): View
     {
-        return $this->renderListing($request, isSearch: true);
+        return $this->renderListing($request, isSearch: true, personalizeOrder: true);
     }
 
     public function show(string $slug): View
     {
         $product = $this->productService->findBySlug($slug);
+
+        $this->userInterestService->trackView(
+            $product,
+            auth()->id(),
+            session()->getId(),
+        );
 
         $relatedProducts = $this->productService
             ->getByCategory($product->category_id, 8)
@@ -66,6 +74,11 @@ class ProductController extends Controller
             ->whereDoesntHave('review')
             ->exists();
 
+        $canAnswerQuestions = auth()->check() && (
+            auth()->user()->isAdmin()
+            || ($product->merchant && (int) $product->merchant->user_id === (int) auth()->id())
+        );
+
         $variantsJson = $product->variants->where('status', 'active')->values()->map(fn ($v) => [
             'id' => $v->id,
             'name' => $v->name,
@@ -81,6 +94,7 @@ class ProductController extends Controller
             'merchantProducts',
             'reviewDistribution',
             'canReview',
+            'canAnswerQuestions',
             'variantsJson',
         ));
     }
@@ -90,11 +104,34 @@ class ProductController extends Controller
         ?Category $category = null,
         ?Brand $brand = null,
         bool $isSearch = false,
+        bool $personalizeOrder = false,
     ): View {
         $brandIds = array_filter(array_map('intval', (array) $request->input('brands', [])));
         $categoryIds = $category
             ? $this->productService->resolveCategoryIds($category)
             : null;
+
+        $userId = auth()->id();
+        $sessionId = session()->getId();
+
+        if ($request->filled('q')) {
+            $this->userInterestService->trackSearch(
+                (string) $request->input('q'),
+                $userId,
+                $sessionId,
+            );
+        }
+
+        $priorityProductIds = null;
+        if ($personalizeOrder && ! $request->filled('sort')) {
+            $interestQuery = $isSearch && $request->filled('q')
+                ? (string) $request->input('q')
+                : $this->userInterestService->getInterestQuery($userId, $sessionId);
+
+            $priorityProductIds = collect(
+                $this->productService->agentRelatedTrending($interestQuery, [], 24)
+            )->pluck('id')->map(fn ($id) => (int) $id)->all();
+        }
 
         $products = $this->productService->search(
             query: $request->input('q'),
@@ -107,6 +144,7 @@ class ProductController extends Controller
             minRating: $request->integer('rating') ?: null,
             minDiscount: $request->integer('discount') ?: null,
             sort: $request->input('sort', $request->filled('q') ? 'relevance' : 'newest'),
+            priorityProductIds: $priorityProductIds,
         );
 
         $categories = Category::query()->active()->roots()->with(['children' => fn ($q) => $q->active()->orderBy('sort_order')])->orderBy('sort_order')->get();

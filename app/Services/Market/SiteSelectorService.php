@@ -22,7 +22,7 @@ PROMPT;
         $count = max(1, min(5, $count));
         $allowed = $this->allowedSitesForCategory($category);
 
-        if (config('market.use_live_llm') && $category) {
+        if (app(\App\Services\Market\Llm\LlmProviderManager::class)->isReady() && $category) {
             $llmSites = $this->selectViaLlm($category, $allowed, $count);
             if (count($llmSites) >= min(3, $count)) {
                 return array_slice($llmSites, 0, $count);

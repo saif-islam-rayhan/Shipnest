@@ -20,6 +20,8 @@ class UserAddress extends Model
         'district',
         'thana',
         'postal_code',
+        'latitude',
+        'longitude',
         'is_default',
     ];
 
@@ -27,6 +29,8 @@ class UserAddress extends Model
     {
         return [
             'is_default' => 'boolean',
+            'latitude' => 'float',
+            'longitude' => 'float',
         ];
     }
 

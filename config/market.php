@@ -5,6 +5,7 @@ return [
     'github_models_endpoint' => env('GITHUB_MODELS_ENDPOINT', 'https://models.inference.ai.azure.com'),
     'use_live_llm' => filter_var(env('USE_LIVE_LLM', false), FILTER_VALIDATE_BOOLEAN),
     'model_google_search' => env('MODEL_GOOGLE_SEARCH', 'gpt-4o-mini'),
+    'model_vision' => env('MODEL_VISION', env('MODEL_GOOGLE_SEARCH', 'gpt-4o-mini')),
     'tavily_api_key' => env('TAVILY_API_KEY', ''),
     'serpapi_key' => env('SERPAPI_KEY', ''),
     'use_google_ai_mode' => filter_var(env('USE_GOOGLE_AI_MODE', true), FILTER_VALIDATE_BOOLEAN),

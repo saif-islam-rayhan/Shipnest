@@ -7,13 +7,13 @@
     $currency = config('shipnest.currency_symbol');
     $trendBadge = function (?float $trend) {
         if ($trend === null) {
-            return '<span class="text-xs text-gray-400">—</span>';
+            return '<span class="dash-trend-neutral">—</span>';
         }
         $up = $trend >= 0;
-        $color = $up ? 'text-emerald-600 bg-emerald-50' : 'text-red-600 bg-red-50';
+        $class = $up ? 'dash-trend-up' : 'dash-trend-down';
         $arrow = $up ? '↑' : '↓';
 
-        return '<span class="dash-badge '.$color.'">'.$arrow.' '.abs($trend).'%</span>';
+        return '<span class="dash-badge '.$class.'">'.$arrow.' '.abs($trend).'%</span>';
     };
     $statCards = [
         [
@@ -22,7 +22,7 @@
             'sub' => $currency.number_format($stats['revenue_today']).' today',
             'trend' => $stats['revenue_trend'],
             'icon' => 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-            'tone' => 'bg-primary-50 text-primary',
+            'bg' => 'dash-stat-revenue',
         ],
         [
             'label' => "Today's orders",
@@ -30,7 +30,7 @@
             'sub' => number_format($stats['total_orders']).' total orders',
             'trend' => $stats['orders_trend'],
             'icon' => 'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z',
-            'tone' => 'bg-blue-50 text-blue-600',
+            'bg' => 'dash-stat-orders',
         ],
         [
             'label' => 'Active products',
@@ -38,7 +38,7 @@
             'sub' => $stats['pending_products'].' pending review',
             'trend' => null,
             'icon' => 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
-            'tone' => 'bg-violet-50 text-violet-600',
+            'bg' => 'dash-stat-products',
         ],
         [
             'label' => 'Merchants',
@@ -46,7 +46,7 @@
             'sub' => $stats['pending_merchants'].' applications waiting',
             'trend' => null,
             'icon' => 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
-            'tone' => 'bg-emerald-50 text-emerald-600',
+            'bg' => 'dash-stat-merchants',
         ],
         [
             'label' => 'Total users',
@@ -54,7 +54,7 @@
             'sub' => 'Registered customers',
             'trend' => null,
             'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z',
-            'tone' => 'bg-sky-50 text-sky-600',
+            'bg' => 'dash-stat-users',
         ],
         [
             'label' => 'Pending actions',
@@ -62,7 +62,7 @@
             'sub' => $stats['pending_orders'].' orders pending',
             'trend' => null,
             'icon' => 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z',
-            'tone' => 'bg-amber-50 text-amber-600',
+            'bg' => 'dash-stat-pending',
         ],
     ];
 @endphp
@@ -72,7 +72,7 @@
         <div>
             <p class="text-sm font-medium text-white/70">{{ now()->format('l, F j, Y') }}</p>
             <h2 class="mt-1 text-2xl font-bold tracking-tight lg:text-3xl">
-                Welcome back, {{ auth()->user()->name }} 👋
+                Welcome back, {{ auth()->user()->name }}
             </h2>
             <p class="mt-2 max-w-xl text-sm text-white/80">
                 Here's what's happening across ShipNest today — sales, orders, and items that need your attention.
@@ -89,9 +89,10 @@
 
 <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
     @foreach($statCards as $card)
-        <div class="dash-stat-card">
-            <div class="flex items-start justify-between gap-3">
-                <div class="dash-stat-icon {{ $card['tone'] }}">
+        <div class="dash-stat-card {{ $card['bg'] }}">
+            <div class="dash-stat-glow"></div>
+            <div class="relative flex items-start justify-between gap-3">
+                <div class="dash-stat-icon">
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="{{ $card['icon'] }}"/>
                     </svg>
@@ -100,9 +101,9 @@
                     {!! $trendBadge($card['trend']) !!}
                 @endif
             </div>
-            <p class="mt-4 text-xs font-medium uppercase tracking-wide text-gray-500">{{ $card['label'] }}</p>
-            <p class="mt-1 text-2xl font-bold text-gray-900">{{ $card['value'] }}</p>
-            <p class="mt-1 text-xs text-gray-500">{{ $card['sub'] }}</p>
+            <p class="dash-stat-label">{{ $card['label'] }}</p>
+            <p class="dash-stat-value">{{ $card['value'] }}</p>
+            <p class="dash-stat-sub">{{ $card['sub'] }}</p>
         </div>
     @endforeach
 </div>
@@ -145,6 +146,42 @@
                         <span class="font-semibold text-gray-900">{{ $count }}</span>
                     </div>
                 @endforeach
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <div class="dash-panel">
+        <div class="dash-panel-head">
+            <div>
+                <h2 class="dash-panel-title">Orders this week</h2>
+                <p class="mt-0.5 text-xs text-gray-500">Daily order count — last 7 days</p>
+            </div>
+            <span class="dash-badge bg-blue-50 text-blue-600">{{ array_sum($ordersChart['data']) }} orders</span>
+        </div>
+        <div class="p-5 pt-2">
+            <div class="h-[220px]">
+                <canvas id="ordersChart"
+                    data-labels='@json($ordersChart['labels'])'
+                    data-values='@json($ordersChart['data'])'></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="dash-panel">
+        <div class="dash-panel-head">
+            <div>
+                <h2 class="dash-panel-title">New customers</h2>
+                <p class="mt-0.5 text-xs text-gray-500">User registrations — last 30 days</p>
+            </div>
+            <span class="dash-badge bg-emerald-50 text-emerald-600">{{ array_sum($usersChart['data']) }} new</span>
+        </div>
+        <div class="p-5 pt-2">
+            <div class="h-[220px]">
+                <canvas id="usersChart"
+                    data-labels='@json($usersChart['labels'])'
+                    data-values='@json($usersChart['data'])'></canvas>
             </div>
         </div>
     </div>
@@ -254,10 +291,3 @@
     </div>
 </div>
 @endsection
-
-@push('scripts')
-<script>
-    initAdminLineChart('revenueChart');
-    initAdminDonutChart('statusChart');
-</script>
-@endpush

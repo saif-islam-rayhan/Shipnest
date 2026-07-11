@@ -2,6 +2,7 @@
 export function registerProductWizard(Alpine, getQuillInstance = () => null) {
     Alpine.data('productWizard', (config = {}) => ({
         step: 1,
+        formError: '',
         variants: config.variants?.length
             ? config.variants
             : [{ name: 'Default', sku: '', price: '', compare_price: '', stock: 0, weight: '' }],
@@ -31,18 +32,46 @@ export function registerProductWizard(Alpine, getQuillInstance = () => null) {
                 input.value = quill.root.innerHTML;
             }
         },
+        fieldValue(form, name) {
+            const el = form.querySelector(`[name="${name}"]`);
+            return (el?.value ?? '').toString().trim();
+        },
+        validateBeforeSubmit(form) {
+            const hasMerchant = Boolean(form.querySelector('[name="merchant_id"]'));
+            if (hasMerchant && !this.fieldValue(form, 'merchant_id')) {
+                return { step: 1, message: 'Please select a merchant / shop.' };
+            }
+            if (!this.fieldValue(form, 'name')) {
+                return { step: 1, message: 'Product name is required.' };
+            }
+            if (!this.fieldValue(form, 'category_id')) {
+                return { step: 1, message: 'Please select a category.' };
+            }
+            if (!this.fieldValue(form, 'sku')) {
+                return { step: 1, message: 'SKU is required.' };
+            }
+
+            const missingPrice = this.variants.some((v) => {
+                const price = v.price;
+                return price === '' || price === null || price === undefined || Number.isNaN(Number(price));
+            });
+            if (!this.variants.length || missingPrice) {
+                return { step: 3, message: 'Please enter a sale price on the Pricing step.' };
+            }
+
+            return null;
+        },
         submitForm(e) {
             this.syncQuill();
-            const form = e.target;
-            if (!form.checkValidity()) {
-                e.preventDefault();
-                if (!form.merchant_id?.value || !form.name?.value || !form.category_id?.value || !form.sku?.value) {
-                    this.step = 1;
-                } else if (!form.querySelector('[name="variants[0][price]"]')?.value) {
-                    this.step = 3;
-                }
-                form.reportValidity();
+            this.formError = '';
 
+            const form = e.target;
+            const error = this.validateBeforeSubmit(form);
+            if (error) {
+                e.preventDefault();
+                this.step = error.step;
+                this.formError = error.message;
+                window.scrollTo({ top: 0, behavior: 'smooth' });
                 return false;
             }
 

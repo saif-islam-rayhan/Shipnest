@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\ProductStatus;
+use App\Http\Controllers\Concerns\GeneratesProductDescriptions;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreProductRequest;
 use App\Http\Requests\Admin\UpdateProductRequest;
@@ -17,6 +18,8 @@ use Illuminate\View\View;
 
 class ProductController extends Controller
 {
+    use GeneratesProductDescriptions;
+
     public function __construct(
         private readonly MerchantProductService $productService,
     ) {}

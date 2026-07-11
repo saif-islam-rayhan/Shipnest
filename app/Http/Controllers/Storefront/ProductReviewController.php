@@ -6,11 +6,26 @@ use App\Http\Controllers\Controller;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductReview;
+use App\Services\Market\ProductReviewGenerator;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class ProductReviewController extends Controller
 {
+    public function generate(Product $product, ProductReviewGenerator $generator): JsonResponse
+    {
+        try {
+            $review = $generator->generate($product);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'Could not generate review. Try again.'], 500);
+        }
+
+        return response()->json($review);
+    }
+
     public function store(Request $request, Product $product): RedirectResponse
     {
         $validated = $request->validate([

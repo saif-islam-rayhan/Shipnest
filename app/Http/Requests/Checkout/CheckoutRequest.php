@@ -29,6 +29,8 @@ class CheckoutRequest extends FormRequest
             'new_address.district' => ['required_without:address_id', 'nullable', 'string', 'max:100'],
             'new_address.thana' => ['nullable', 'string', 'max:100'],
             'new_address.postal_code' => ['nullable', 'string', 'max:20'],
+            'new_address.latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'new_address.longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'new_address.label' => ['nullable', 'string', 'max:50'],
             'new_address.is_default' => ['nullable', 'boolean'],
             'shipping_method' => ['required', 'string', Rule::in(array_keys(config('shipping.methods', [])))],

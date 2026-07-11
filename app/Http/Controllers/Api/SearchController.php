@@ -4,11 +4,16 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Services\UserInterestService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class SearchController extends Controller
 {
+    public function __construct(
+        private readonly UserInterestService $userInterestService,
+    ) {}
+
     public function __invoke(Request $request): JsonResponse
     {
         $query = trim((string) $request->input('q', ''));
@@ -16,6 +21,12 @@ class SearchController extends Controller
         if (strlen($query) < 2) {
             return response()->json([]);
         }
+
+        $this->userInterestService->trackSearch(
+            $query,
+            auth()->id(),
+            session()->getId(),
+        );
 
         $products = Product::query()
             ->with(['defaultVariant', 'merchant'])

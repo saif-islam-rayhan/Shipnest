@@ -8,6 +8,7 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\FlashSale;
 use App\Models\Merchant;
+use App\Services\PersonalizedProductService;
 use App\Services\ProductService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,6 +18,7 @@ class HomeController extends Controller
 {
     public function __construct(
         private readonly ProductService $productService,
+        private readonly PersonalizedProductService $personalizedProducts,
     ) {}
 
     public function index(): View
@@ -74,6 +76,15 @@ class HomeController extends Controller
             ->limit(8)
             ->get();
 
+        $userId = auth()->id();
+        $sessionId = session()->getId();
+
+        $heroDiscountProducts = $this->personalizedProducts->getHeroDiscountProducts($userId, $sessionId, 5);
+
+        $heroSlideCount = $heroDiscountProducts->isNotEmpty()
+            ? $heroDiscountProducts->count()
+            : max($heroBanners->count(), 3);
+
         return view('frontend.home', compact(
             'heroBanners',
             'promoBanners',
@@ -83,6 +94,8 @@ class HomeController extends Controller
             'categories',
             'brands',
             'featuredMerchants',
+            'heroDiscountProducts',
+            'heroSlideCount',
         ));
     }
 

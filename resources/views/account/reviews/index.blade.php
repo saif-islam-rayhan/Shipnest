@@ -18,14 +18,22 @@
                             <form action="{{ route('account.reviews.store') }}" method="POST" class="mt-3 space-y-3">
                                 @csrf
                                 <input type="hidden" name="order_item_id" value="{{ $item->id }}">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Rating</label>
-                                    <select name="rating" class="input-field w-32" required>
-                                        @for($i = 5; $i >= 1; $i--)
-                                            <option value="{{ $i }}">{{ $i }} Star{{ $i > 1 ? 's' : '' }}</option>
-                                        @endfor
-                                    </select>
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <label class="block text-sm font-medium text-gray-700">Rating</label>
+                                    @if($item->product)
+                                    <div data-review-ai data-generate-url="{{ route('products.reviews.generate', $item->product) }}" class="flex items-center gap-2">
+                                        <span data-ai-status class="text-xs text-gray-400"></span>
+                                        <button type="button" data-ai-generate class="text-xs font-medium text-primary hover:underline">
+                                            Generate with AI
+                                        </button>
+                                    </div>
+                                    @endif
                                 </div>
+                                <select name="rating" class="input-field w-32" required>
+                                    @for($i = 5; $i >= 1; $i--)
+                                        <option value="{{ $i }}">{{ $i }} Star{{ $i > 1 ? 's' : '' }}</option>
+                                    @endfor
+                                </select>
                                 <div>
                                     <input type="text" name="title" placeholder="Review title" class="input-field" required>
                                 </div>

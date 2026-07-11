@@ -22,6 +22,8 @@ class StoreAddressRequest extends FormRequest
             'district' => ['required', 'string', 'max:100'],
             'thana' => ['nullable', 'string', 'max:100'],
             'postal_code' => ['nullable', 'string', 'max:10'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'is_default' => ['nullable', 'boolean'],
         ];
     }

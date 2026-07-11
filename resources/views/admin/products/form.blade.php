@@ -23,28 +23,35 @@
 @endif
 
 <form action="{{ $product->exists ? route('admin.products.update', $product) : route('admin.products.store') }}"
-      method="POST" enctype="multipart/form-data"
+      method="POST" enctype="multipart/form-data" novalidate
       x-data="productWizard(@js(['variants' => $variants, 'attributes' => $attributes, 'existingImages' => $existingImages->map(fn($i) => ['id' => $i->id, 'url' => $i->url])->values()]))"
       @submit="submitForm($event)">
     @csrf
     @if($product->exists) @method('PUT') @endif
 
-    <div class="flex gap-2 mb-6 overflow-x-auto">
-        @foreach(['Basic Info', 'Images', 'Pricing & Stock', 'Attributes', 'SEO & Admin'] as $i => $label)
-            <button type="button" @click="step = {{ $i + 1 }}"
-                    class="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition"
-                    :class="step === {{ $i + 1 }} ? 'bg-[#F57C00] text-white' : 'bg-white text-gray-600 ring-1 ring-gray-200'">
-                {{ $i + 1 }}. {{ $label }}
-            </button>
-        @endforeach
+    <div x-show="formError" x-cloak class="mb-4 rounded-lg bg-red-50 border border-red-200 text-red-800 px-4 py-3 text-sm" x-text="formError"></div>
+
+    <div class="flex gap-2 mb-6 overflow-x-auto items-center justify-between">
+        <div class="flex gap-2 overflow-x-auto">
+            @foreach(['Basic Info', 'Images', 'Pricing & Stock', 'Attributes', 'SEO & Admin'] as $i => $label)
+                <button type="button" @click="step = {{ $i + 1 }}"
+                        class="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition"
+                        :class="step === {{ $i + 1 }} ? 'bg-[#F57C00] text-white' : 'bg-white text-gray-600 ring-1 ring-gray-200'">
+                    {{ $i + 1 }}. {{ $label }}
+                </button>
+            @endforeach
+        </div>
+        <button type="button" x-show="step < 5" @click="step = step + 1" class="btn-primary shrink-0 h-10 px-5 text-sm">
+            Next →
+        </button>
     </div>
 
     {{-- Step 1: Basic Info --}}
-    <div x-show="step === 1" class="bg-white rounded-xl ring-1 ring-gray-200 p-6 space-y-4">
+    <div x-show="step === 1" x-cloak class="bg-white rounded-xl ring-1 ring-gray-200 p-6 space-y-4 pb-24">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="md:col-span-2">
                 <label class="block text-sm font-medium mb-1">Merchant / Shop *</label>
-                <select name="merchant_id" class="input-field" required>
+                <select name="merchant_id" class="input-field">
                     <option value="">Select merchant</option>
                     @foreach($merchants as $m)
                         <option value="{{ $m->id }}" @selected(old('merchant_id', $product->merchant_id) == $m->id)>{{ $m->shop_name }}</option>
@@ -53,11 +60,11 @@
             </div>
             <div class="md:col-span-2">
                 <label class="block text-sm font-medium mb-1">Product Name *</label>
-                <input type="text" name="name" value="{{ old('name', $product->name) }}" class="input-field" required>
+                <input type="text" name="name" value="{{ old('name', $product->name) }}" class="input-field">
             </div>
             <div>
                 <label class="block text-sm font-medium mb-1">Category *</label>
-                <select name="category_id" class="input-field" required>
+                <select name="category_id" class="input-field">
                     <option value="">Select category</option>
                     @foreach($categories as $cat)
                         <option value="{{ $cat->id }}" @selected(old('category_id', $product->category_id) == $cat->id)>{{ $cat->name }}</option>
@@ -75,23 +82,32 @@
             </div>
             <div>
                 <label class="block text-sm font-medium mb-1">SKU *</label>
-                <input type="text" name="sku" value="{{ old('sku', $product->exists ? $product->getRawOriginal('sku') : '') }}" class="input-field" required>
+                <input type="text" name="sku" value="{{ old('sku', $product->exists ? $product->getRawOriginal('sku') : '') }}" class="input-field">
             </div>
             <div class="md:col-span-2">
                 <label class="block text-sm font-medium mb-1">Short Description</label>
                 <textarea name="short_description" rows="2" class="input-field">{{ old('short_description', $product->short_description) }}</textarea>
             </div>
-            <div class="md:col-span-2">
-                <label class="block text-sm font-medium mb-1">Description</label>
-                <div id="quill-editor" class="bg-white min-h-[200px]"></div>
+            <div class="md:col-span-2" data-description-ai>
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+                    <label class="block text-sm font-medium">Description</label>
+                    <div class="flex items-center gap-2">
+                        <span data-ai-status class="text-xs text-gray-400"></span>
+                        <button type="button" data-ai-generate class="text-xs font-medium text-primary hover:underline">
+                            Generate with AI
+                        </button>
+                    </div>
+                </div>
+                <div id="quill-editor"
+                     data-generate-url="{{ route('admin.products.generate-description') }}"
+                     class="bg-white min-h-[140px] max-h-[220px]"></div>
                 <input type="hidden" name="description" id="description-input" value="{{ old('description', $product->description) }}">
             </div>
         </div>
-        <button type="button" @click="step = 2" class="btn-primary">Next: Images</button>
     </div>
 
     {{-- Step 2: Images --}}
-    <div x-show="step === 2" class="bg-white rounded-xl ring-1 ring-gray-200 p-6 space-y-4">
+    <div x-show="step === 2" x-cloak class="bg-white rounded-xl ring-1 ring-gray-200 p-6 space-y-4 pb-24">
         <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center"
              @dragover.prevent @drop.prevent="handleDrop($event)">
             <p class="text-gray-500 mb-2">Drag & drop images here or click to browse</p>
@@ -101,7 +117,7 @@
         <div>
             <label class="block text-sm font-medium mb-1">Or paste image URLs (one per line)</label>
             <textarea name="image_urls" rows="3" class="input-field text-sm"
-                placeholder="https://images.unsplash.com/photo-...&#10;https://example.com/product.jpg">{{ old('image_urls') }}</textarea>
+                placeholder="https://images.unsplash.com/photo-...&#10;https://example.com/product.jpg">{{ old('image_urls', request('design_image')) }}</textarea>
             <p class="text-xs text-gray-400 mt-1">Useful for external product photos without uploading files.</p>
         </div>
         <div class="grid grid-cols-3 md:grid-cols-5 gap-3">
@@ -121,21 +137,17 @@
                 </div>
             </template>
         </div>
-        <div class="flex gap-2">
-            <button type="button" @click="step = 1" class="btn-outline">Back</button>
-            <button type="button" @click="step = 3" class="btn-primary">Next: Pricing</button>
-        </div>
     </div>
 
     {{-- Step 3: Variants / Pricing / Discount --}}
-    <div x-show="step === 3" class="bg-white rounded-xl ring-1 ring-gray-200 p-6 space-y-4">
+    <div x-show="step === 3" x-cloak class="bg-white rounded-xl ring-1 ring-gray-200 p-6 space-y-4 pb-24">
         <p class="text-sm text-gray-600">Set <strong>Price</strong> and <strong>Compare Price</strong> (original price) to show a discount badge on the storefront.</p>
         <template x-for="(variant, i) in variants" :key="i">
             <div class="grid grid-cols-2 md:grid-cols-6 gap-3 p-3 bg-gray-50 rounded-lg">
                 <input type="hidden" :name="'variants['+i+'][id]'" :value="variant.id || ''">
                 <input type="text" :name="'variants['+i+'][name]'" x-model="variant.name" placeholder="Variant name" class="input-field">
                 <input type="text" :name="'variants['+i+'][sku]'" x-model="variant.sku" placeholder="SKU" class="input-field">
-                <input type="number" :name="'variants['+i+'][price]'" x-model="variant.price" placeholder="Sale price *" class="input-field" step="0.01" min="0" required>
+                <input type="number" :name="'variants['+i+'][price]'" x-model="variant.price" placeholder="Sale price *" class="input-field" step="0.01" min="0">
                 <input type="number" :name="'variants['+i+'][compare_price]'" x-model="variant.compare_price" placeholder="Compare (was)" class="input-field" step="0.01" min="0">
                 <input type="number" :name="'variants['+i+'][stock]'" x-model="variant.stock" placeholder="Stock" class="input-field">
                 <div class="flex gap-1">
@@ -145,14 +157,10 @@
             </div>
         </template>
         <button type="button" @click="variants.push({name:'',sku:'',price:'',compare_price:'',stock:0,weight:''})" class="text-sm text-[#F57C00]">+ Add Variant Row</button>
-        <div class="flex gap-2">
-            <button type="button" @click="step = 2" class="btn-outline">Back</button>
-            <button type="button" @click="step = 4" class="btn-primary">Next: Attributes</button>
-        </div>
     </div>
 
     {{-- Step 4: Attributes --}}
-    <div x-show="step === 4" class="bg-white rounded-xl ring-1 ring-gray-200 p-6 space-y-4">
+    <div x-show="step === 4" x-cloak class="bg-white rounded-xl ring-1 ring-gray-200 p-6 space-y-4 pb-24">
         <template x-for="(attr, i) in attributes" :key="i">
             <div class="flex gap-3">
                 <input type="text" :name="'attributes['+i+'][name]'" x-model="attr.name" placeholder="Attribute (e.g. Color)" class="input-field flex-1">
@@ -161,14 +169,10 @@
             </div>
         </template>
         <button type="button" @click="attributes.push({name:'',value:''})" class="text-sm text-[#F57C00]">+ Add Attribute</button>
-        <div class="flex gap-2">
-            <button type="button" @click="step = 3" class="btn-outline">Back</button>
-            <button type="button" @click="step = 5" class="btn-primary">Next: SEO & Admin</button>
-        </div>
     </div>
 
     {{-- Step 5: SEO & Admin --}}
-    <div x-show="step === 5" class="bg-white rounded-xl ring-1 ring-gray-200 p-6 space-y-4">
+    <div x-show="step === 5" x-cloak class="bg-white rounded-xl ring-1 ring-gray-200 p-6 space-y-4 pb-24">
         <div>
             <label class="block text-sm font-medium mb-1">Meta Title</label>
             <input type="text" name="meta_title" value="{{ old('meta_title', $product->meta_title) }}" class="input-field">
@@ -207,15 +211,37 @@
                 </label>
             </div>
         </div>
-        <div class="flex gap-2 pt-4">
-            <button type="button" @click="step = 4" class="btn-outline">Back</button>
-            <button type="submit" name="action" value="draft" class="btn-outline" @click="syncQuill()">Save as Draft</button>
-            <button type="submit" name="action" value="publish" class="btn-primary" @click="syncQuill()">Publish</button>
+    </div>
+
+    {{-- Sticky step actions — always visible --}}
+    <div class="sticky bottom-0 z-20 -mx-4 lg:-mx-6 mt-4 border-t bg-white/95 backdrop-blur px-4 lg:px-6 py-3">
+        <div class="flex gap-2 max-w-full">
+            <button type="button" x-show="step > 1" @click="step = step - 1" class="btn-outline h-10 px-5 text-sm">Back</button>
+            <button type="button" x-show="step === 1" @click="step = 2" class="btn-primary h-10 px-6 text-sm">Next: Images</button>
+            <button type="button" x-show="step === 2" @click="step = 3" class="btn-primary h-10 px-6 text-sm">Next: Pricing</button>
+            <button type="button" x-show="step === 3" @click="step = 4" class="btn-primary h-10 px-6 text-sm">Next: Attributes</button>
+            <button type="button" x-show="step === 4" @click="step = 5" class="btn-primary h-10 px-6 text-sm">Next: SEO & Admin</button>
+            <template x-if="step === 5">
+                <div class="flex gap-2 flex-wrap">
+                    <button type="submit" name="action" value="draft" class="btn-outline h-10 px-5 text-sm">Save as Draft</button>
+                    <button type="submit" name="action" value="publish" class="btn-primary h-10 px-6 text-sm">Publish</button>
+                </div>
+            </template>
         </div>
     </div>
 </form>
 @endsection
 
 @push('scripts')
-<script>window.initProductQuill && window.initProductQuill();</script>
+<script>
+(function waitForProductQuill(attempt) {
+    if (window.initProductQuill && typeof Quill !== 'undefined') {
+        window.initProductQuill();
+        return;
+    }
+    if ((attempt || 0) < 50) {
+        setTimeout(function () { waitForProductQuill((attempt || 0) + 1); }, 50);
+    }
+})(0);
+</script>
 @endpush

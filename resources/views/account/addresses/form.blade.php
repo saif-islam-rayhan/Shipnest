@@ -51,11 +51,18 @@
                     <input type="text" name="thana" value="{{ old('thana', $address->thana) }}" class="input-field">
                     @error('thana')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                 </div>
-                <div class="flex items-center gap-2 sm:col-span-2">
-                    <input type="checkbox" name="is_default" value="1" id="is_default" class="rounded text-primary focus:ring-primary"
-                        @checked(old('is_default', $address->is_default))>
-                    <label for="is_default" class="text-sm text-gray-700">Set as default address</label>
-                </div>
+            </div>
+
+            <x-map-address-picker
+                prefix=""
+                :latitude="old('latitude', $address->latitude)"
+                :longitude="old('longitude', $address->longitude)"
+            />
+
+            <div class="flex items-center gap-2">
+                <input type="checkbox" name="is_default" value="1" id="is_default" class="rounded text-primary focus:ring-primary"
+                    @checked(old('is_default', $address->is_default))>
+                <label for="is_default" class="text-sm text-gray-700">Set as default address</label>
             </div>
 
             <button type="submit" class="btn-primary">{{ $address->exists ? 'Update Address' : 'Save Address' }}</button>

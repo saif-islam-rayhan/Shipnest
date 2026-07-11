@@ -56,9 +56,8 @@
         @if($order->discount > 0)
           <div class="flex justify-between text-green-600"><span>Discount</span><span>-{{ config('shipnest.currency_symbol') }}{{ number_format($order->discount) }}</span></div>
         @endif
-        @if($order->payment_method === \App\Enums\PaymentMethod::Cod && $order->shipping_charge > 0)
-          <div class="flex justify-between text-amber-700"><span>Shipping (paid upfront)</span><span>{{ config('shipnest.currency_symbol') }}{{ number_format($order->shipping_charge) }}</span></div>
-          <div class="flex justify-between font-medium"><span>Due on delivery (cash)</span><span>{{ config('shipnest.currency_symbol') }}{{ number_format($order->amount_due_on_delivery) }}</span></div>
+        @if($order->payment_method === \App\Enums\PaymentMethod::Cod)
+          <div class="flex justify-between font-medium text-amber-800"><span>Due on delivery (cash)</span><span>{{ config('shipnest.currency_symbol') }}{{ number_format($order->amount_due_on_delivery) }}</span></div>
         @endif
         <div class="flex justify-between font-bold text-base pt-2 border-t"><span>Total</span><span class="text-primary">{{ config('shipnest.currency_symbol') }}{{ number_format($order->total) }}</span></div>
       </div>

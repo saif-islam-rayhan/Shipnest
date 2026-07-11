@@ -47,4 +47,14 @@ return [
         'redirect' => env('FACEBOOK_REDIRECT_URI', env('APP_URL').'/auth/facebook/callback'),
     ],
 
+    /*
+    | Free text-to-image via Pollinations (no paid key required for basic use).
+    | Optional key: https://enter.pollinations.ai
+    */
+    'pollinations' => [
+        'image_base' => env('POLLINATIONS_IMAGE_BASE', 'https://image.pollinations.ai/prompt'),
+        'model' => env('POLLINATIONS_MODEL', 'flux'),
+        'key' => env('POLLINATIONS_API_KEY'),
+    ],
+
 ];

@@ -1,6 +1,11 @@
 import './bootstrap';
+import './admin-agent-widget';
+import './product-review-ai';
 import Alpine from 'alpinejs';
 import { registerProductWizard } from './product-wizard';
+import { registerLlmProviderAdmin } from './llm-provider-admin';
+import { registerMapAddressPicker } from './map-address-picker';
+import { registerAiDesignStudio } from './ai-design-studio';
 
 document.addEventListener('alpine:init', () => {
     Alpine.data('cartPage', (totals = {}) => ({
@@ -77,7 +82,6 @@ document.addEventListener('alpine:init', () => {
         useNewAddress: config.useNewAddress ?? false,
         shippingMethod: config.shippingMethod ?? 'standard',
         paymentMethod: config.paymentMethod ?? 'cod',
-        codShippingPayment: config.codShippingPayment ?? 'bkash',
         paymentReference: config.paymentReference ?? '',
         subtotal: config.subtotal ?? 0,
         discount: config.discount ?? 0,
@@ -91,7 +95,7 @@ document.addEventListener('alpine:init', () => {
             return Number(n).toLocaleString('en-BD', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
         },
         dueOnDelivery() {
-            return Math.max(0, this.subtotal - this.discount);
+            return Math.max(0, this.subtotal - this.discount + this.shipping);
         },
         updateShipping(key, rate) {
             this.shipping = (this.freeShippingEnabled && this.subtotal >= this.freeShippingThreshold) ? 0 : rate;
@@ -115,24 +119,16 @@ document.addEventListener('alpine:init', () => {
                 this.step = 3;
                 return false;
             }
-            if (this.paymentMethod === 'cod' && this.shipping > 0) {
-                if (!this.codShippingPayment) {
-                    alert('Please select bKash or Nagad to pay the shipping charge.');
-                    this.step = 3;
-                    return false;
-                }
-                if (!this.paymentReference.trim()) {
-                    alert('Please pay the shipping charge first and enter the transaction ID.');
-                    this.step = 3;
-                    return false;
-                }
-            }
             return true;
         },
     }));
 
     registerProductWizard(Alpine, () => window.productQuillInstance ?? null);
+    registerLlmProviderAdmin(Alpine);
+    registerAiDesignStudio(Alpine);
 });
+
+registerMapAddressPicker();
 
 window.Alpine = Alpine;
 Alpine.start();

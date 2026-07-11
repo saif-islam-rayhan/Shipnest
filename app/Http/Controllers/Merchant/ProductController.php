@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Merchant;
 
 use App\Enums\ProductStatus;
+use App\Http\Controllers\Concerns\GeneratesProductDescriptions;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Merchant\Concerns\InteractsWithShop;
 use App\Http\Requests\Merchant\StoreProductRequest;
@@ -17,6 +18,7 @@ use Illuminate\View\View;
 
 class ProductController extends Controller
 {
+    use GeneratesProductDescriptions;
     use InteractsWithShop;
 
     public function __construct(

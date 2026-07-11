@@ -29,6 +29,8 @@
 
     @include('layouts.partials.footer')
 
+    <x-agent-fab context="public" />
+
     @stack('scripts')
 </body>
 </html>

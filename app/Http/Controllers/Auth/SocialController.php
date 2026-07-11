@@ -6,6 +6,8 @@ use App\Http\Controllers\Auth\Concerns\AuthenticatesUsers;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\CartService;
+use App\Services\UserInterestService;
+use App\Support\SocialLogin;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -16,9 +18,19 @@ class SocialController extends Controller
 {
     use AuthenticatesUsers;
 
-    public function redirect(string $provider): SymfonyRedirectResponse
+    public function redirect(string $provider): SymfonyRedirectResponse|RedirectResponse
     {
         $this->validateProvider($provider);
+
+        if ($provider === 'google' && ! SocialLogin::isGoogleReady()) {
+            return redirect()->route('login')
+                ->with('error', 'Google login is not configured. Please use email or another sign-in method.');
+        }
+
+        if ($provider === 'facebook' && ! SocialLogin::isFacebookConfigured()) {
+            return redirect()->route('login')
+                ->with('error', 'Facebook login is not configured. Please use email or another sign-in method.');
+        }
 
         return Socialite::driver($provider)->redirect();
     }
@@ -70,6 +82,7 @@ class SocialController extends Controller
         request()->session()->regenerate();
 
         app(CartService::class)->mergeGuestCart($user);
+        app(UserInterestService::class)->mergeGuestSession($user, request()->session()->getId());
 
         return redirect()
             ->intended($this->redirectPath($user))

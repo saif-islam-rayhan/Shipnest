@@ -1,4 +1,7 @@
 /* Admin panel charts — Chart.js via CDN */
+import './admin-agent-widget.js';
+import { bindProductDescriptionAi } from './product-description-ai';
+
 window.initAdminLineChart = function (id) {
     const el = document.getElementById(id);
     if (!el || typeof Chart === 'undefined') return;
@@ -50,6 +53,96 @@ window.initAdminLineChart = function (id) {
                     beginAtZero: true,
                     grid: { color: 'rgba(0,0,0,0.04)' },
                     ticks: { color: '#9CA3AF', font: { size: 11 } },
+                    border: { display: false },
+                },
+            },
+        },
+    });
+};
+
+window.initAdminBarChart = function (id, color = '#3B82F6') {
+    const el = document.getElementById(id);
+    if (!el || typeof Chart === 'undefined') return;
+
+    new Chart(el, {
+        type: 'bar',
+        data: {
+            labels: JSON.parse(el.dataset.labels || '[]'),
+            datasets: [{
+                data: JSON.parse(el.dataset.values || '[]'),
+                backgroundColor: color,
+                borderRadius: 6,
+                borderSkipped: false,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#111827',
+                    padding: 10,
+                    cornerRadius: 8,
+                },
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#9CA3AF', font: { size: 11 } },
+                    border: { display: false },
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(0,0,0,0.04)' },
+                    ticks: { color: '#9CA3AF', font: { size: 11 }, stepSize: 1 },
+                    border: { display: false },
+                },
+            },
+        },
+    });
+};
+
+window.initAdminAreaChart = function (id, borderColor = '#10B981', fillColor = 'rgba(16, 185, 129, 0.15)') {
+    const el = document.getElementById(id);
+    if (!el || typeof Chart === 'undefined') return;
+
+    new Chart(el, {
+        type: 'line',
+        data: {
+            labels: JSON.parse(el.dataset.labels || '[]'),
+            datasets: [{
+                data: JSON.parse(el.dataset.values || '[]'),
+                borderColor,
+                backgroundColor: fillColor,
+                fill: true,
+                tension: 0.35,
+                borderWidth: 2,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#111827',
+                    padding: 10,
+                    cornerRadius: 8,
+                },
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#9CA3AF', maxTicksLimit: 8, font: { size: 11 } },
+                    border: { display: false },
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(0,0,0,0.04)' },
+                    ticks: { color: '#9CA3AF', font: { size: 11 }, stepSize: 1 },
                     border: { display: false },
                 },
             },
@@ -120,9 +213,38 @@ window.initProductQuill = function () {
     if (input?.value) {
         productQuillInstance.root.innerHTML = input.value;
     }
+
+    bindProductDescriptionAi(productQuillInstance, {
+        url: editor.dataset.generateUrl,
+        form: editor.closest('form'),
+    });
 };
 
+function bootProductQuillWhenReady() {
+    if (!document.getElementById('quill-editor') || !document.getElementById('description-input')) {
+        return;
+    }
+    if (typeof Quill === 'undefined') {
+        setTimeout(bootProductQuillWhenReady, 40);
+        return;
+    }
+    window.initProductQuill();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootProductQuillWhenReady);
+} else {
+    bootProductQuillWhenReady();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('revenueChart')) {
+        initAdminLineChart('revenueChart');
+        initAdminDonutChart('statusChart');
+        initAdminBarChart('ordersChart', '#3B82F6');
+        initAdminAreaChart('usersChart', '#10B981', 'rgba(16, 185, 129, 0.12)');
+    }
+
     document.querySelectorAll('.admin-datatable').forEach(el => {
         if (typeof $ !== 'undefined' && $.fn.DataTable) $(el).DataTable({ order: [] });
     });

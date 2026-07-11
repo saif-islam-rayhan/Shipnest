@@ -68,6 +68,41 @@ class MerchantProductService
         });
     }
 
+    /**
+     * @param  array<int, UploadedFile>  $images
+     * @param  array<int, string>  $imageUrls
+     */
+    public function addImages(Product $product, array $images = [], array $imageUrls = []): Product
+    {
+        $this->storeImages($product, $images, null);
+        $this->storeImageUrls($product, $imageUrls);
+        $this->updateThumbnail($product, null);
+
+        return $product->fresh(['images']);
+    }
+
+    /**
+     * @param  array<int, string>  $paths
+     */
+    public function attachStoredPaths(Product $product, array $paths): Product
+    {
+        foreach ($paths as $path) {
+            $path = trim((string) $path);
+            if ($path === '' || ! Storage::disk('public')->exists($path)) {
+                continue;
+            }
+
+            $product->images()->create([
+                'image_path' => $path,
+                'sort_order' => $product->images()->count(),
+            ]);
+        }
+
+        $this->updateThumbnail($product, null);
+
+        return $product->fresh(['images']);
+    }
+
     public function duplicate(Product $product): Product
     {
         return DB::transaction(function () use ($product) {
@@ -105,15 +140,24 @@ class MerchantProductService
     protected function syncVariants(Product $product, array $variants): void
     {
         $keepIds = [];
+        $index = 0;
 
         foreach ($variants as $variant) {
             if (empty($variant['name']) && empty($variant['price'])) {
                 continue;
             }
 
+            $index++;
+            $variantSku = trim((string) ($variant['sku'] ?? ''));
+            if ($variantSku === '') {
+                $variantSku = count($variants) === 1
+                    ? $product->sku
+                    : $product->sku.'-V'.$index;
+            }
+
             $payload = [
                 'name' => $variant['name'] ?? 'Default',
-                'sku' => $variant['sku'] ?? $product->sku,
+                'sku' => $variantSku,
                 'price' => $variant['price'] ?? 0,
                 'compare_price' => $variant['compare_price'] ?? null,
                 'cost_price' => $variant['cost_price'] ?? null,

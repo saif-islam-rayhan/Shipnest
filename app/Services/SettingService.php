@@ -29,6 +29,9 @@ class SettingService
         'aws_secret_access_key',
         'meilisearch_key',
         'redis_password',
+        'github_token',
+        'tavily_api_key',
+        'serpapi_key',
     ];
 
     public function get(string $key, mixed $default = null): mixed
@@ -85,7 +88,11 @@ class SettingService
 
     public function isSecureKey(string $key): bool
     {
-        return in_array($key, $this->secureKeys, true);
+        if (in_array($key, $this->secureKeys, true)) {
+            return true;
+        }
+
+        return str_starts_with($key, 'llm_') && str_ends_with($key, '_api_key');
     }
 
     public function mergedGroup(string $group, array $defaults = []): array

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Services\Market\Llm\LlmProviderManager;
 use Illuminate\Support\Facades\Schema;
 
 class DynamicConfigService
@@ -26,7 +27,12 @@ class DynamicConfigService
         $this->applyMail();
         $this->applySms();
         $this->applyIntegrations();
+        $this->applySocialLogin();
         $this->applySearch();
+        $this->applyLanguage();
+        $this->applyLocation();
+        $this->applyAgent();
+        $this->applyLlmProviders();
     }
 
     protected function applyGeneral(): void
@@ -61,6 +67,49 @@ class DynamicConfigService
         $commission = $this->settings->getGroup('commission');
         if (isset($commission['default_commission_rate'])) {
             config(['shipnest.commission_rate' => (float) $commission['default_commission_rate']]);
+        }
+    }
+
+    protected function applySocialLogin(): void
+    {
+        $g = $this->settings->getGroup('general');
+        $i = $this->settings->getGroup('integrations');
+
+        $googleClientId = $g['google_client_id'] ?? $i['google_client_id'] ?? env('GOOGLE_CLIENT_ID');
+        $googleRedirect = $g['google_redirect_uri']
+            ?? $i['google_redirect_uri']
+            ?? env('GOOGLE_REDIRECT_URI', rtrim((string) config('app.url'), '/').'/auth/google/callback');
+
+        $googleSecret = $this->settings->getSecure('google_client_secret', 'general');
+        if ($googleSecret === null) {
+            $googleSecret = $this->settings->getSecure('google_client_secret', 'integrations');
+        }
+        if ($googleSecret === null && filled(env('GOOGLE_CLIENT_SECRET'))) {
+            $googleSecret = env('GOOGLE_CLIENT_SECRET');
+        }
+
+        $this->setIfPresent('services.google.client_id', $googleClientId);
+        $this->setIfPresent('services.google.redirect', $googleRedirect);
+        if ($googleSecret !== null) {
+            config(['services.google.client_secret' => $googleSecret]);
+        }
+
+        if (array_key_exists('google_login_enabled', $g)) {
+            config(['shipnest.google_login_enabled' => ($g['google_login_enabled'] ?? '0') === '1']);
+        } elseif (filled($googleClientId) && filled($googleSecret)) {
+            config(['shipnest.google_login_enabled' => (bool) env('GOOGLE_LOGIN_ENABLED', true)]);
+        }
+
+        $this->setIfPresent('services.facebook.client_id', $i['facebook_client_id'] ?? env('FACEBOOK_CLIENT_ID'));
+        $this->setIfPresent('services.facebook.redirect', $i['facebook_redirect_uri']
+            ?? env('FACEBOOK_REDIRECT_URI', rtrim((string) config('app.url'), '/').'/auth/facebook/callback'));
+
+        $fbSecret = $this->settings->getSecure('facebook_client_secret', 'integrations');
+        if ($fbSecret === null && filled(env('FACEBOOK_CLIENT_SECRET'))) {
+            $fbSecret = env('FACEBOOK_CLIENT_SECRET');
+        }
+        if ($fbSecret !== null) {
+            config(['services.facebook.client_secret' => $fbSecret]);
         }
     }
 
@@ -204,20 +253,6 @@ class DynamicConfigService
     {
         $i = $this->settings->getGroup('integrations');
 
-        $this->setIfPresent('services.google.client_id', $i['google_client_id'] ?? null);
-        $this->setIfPresent('services.facebook.client_id', $i['facebook_client_id'] ?? null);
-        $this->setIfPresent('services.google.redirect', $i['google_redirect_uri'] ?? null);
-        $this->setIfPresent('services.facebook.redirect', $i['facebook_redirect_uri'] ?? null);
-
-        $googleSecret = $this->settings->getSecure('google_client_secret', 'integrations');
-        if ($googleSecret !== null) {
-            config(['services.google.client_secret' => $googleSecret]);
-        }
-        $fbSecret = $this->settings->getSecure('facebook_client_secret', 'integrations');
-        if ($fbSecret !== null) {
-            config(['services.facebook.client_secret' => $fbSecret]);
-        }
-
         $this->setIfPresent('broadcasting.connections.pusher.key', $i['pusher_app_key'] ?? null);
         $this->setIfPresent('broadcasting.connections.pusher.app_id', $i['pusher_app_id'] ?? null);
         $this->setIfPresent('broadcasting.connections.pusher.options.cluster', $i['pusher_app_cluster'] ?? null);
@@ -255,6 +290,113 @@ class DynamicConfigService
         $redisPass = $this->settings->getSecure('redis_password', 'integrations');
         if ($redisPass !== null) {
             config(['database.redis.default.password' => $redisPass]);
+        }
+    }
+
+    protected function applyLanguage(): void
+    {
+        $language = $this->settings->getGroup('language');
+        $available = [];
+
+        if ($this->toBool($language['locale_en_enabled'] ?? '1')) {
+            $available[] = 'en';
+        }
+        if ($this->toBool($language['locale_bn_enabled'] ?? '1')) {
+            $available[] = 'bn';
+        }
+
+        if ($available === []) {
+            $available = ['en'];
+        }
+
+        $default = $language['default_locale'] ?? config('app.locale', 'en');
+        if (! in_array($default, $available, true)) {
+            $default = $available[0];
+        }
+
+        config([
+            'app.locale' => $default,
+            'shipnest.localization.default_locale' => $default,
+            'shipnest.localization.available_locales' => $available,
+            'shipnest.localization.language_switcher_enabled' => $this->toBool($language['language_switcher_enabled'] ?? '1'),
+        ]);
+    }
+
+    protected function applyLocation(): void
+    {
+        $location = $this->settings->getGroup('location');
+
+        config([
+            'shipnest.map.enabled' => $this->toBool($location['map_enabled'] ?? '1'),
+            'shipnest.map.provider' => $location['map_provider'] ?? config('shipnest.map.provider', 'leaflet'),
+            'shipnest.map.default_lat' => (float) ($location['map_default_lat'] ?? config('shipnest.map.default_lat', 23.8103)),
+            'shipnest.map.default_lng' => (float) ($location['map_default_lng'] ?? config('shipnest.map.default_lng', 90.4125)),
+            'shipnest.map.default_zoom' => (int) ($location['map_default_zoom'] ?? config('shipnest.map.default_zoom', 12)),
+            'shipnest.map.country_code' => strtolower($location['map_country_code'] ?? config('shipnest.map.country_code', 'bd')),
+        ]);
+
+        $googleKey = $this->settings->getSecure('google_maps_api_key', 'location')
+            ?? ($location['google_maps_api_key'] ?? null)
+            ?? config('shipnest.map.google_maps_api_key');
+
+        if ($googleKey) {
+            config(['shipnest.map.google_maps_api_key' => $googleKey]);
+        }
+    }
+
+    protected function applyAgent(): void
+    {
+        $a = $this->settings->getGroup('agent');
+
+        if (array_key_exists('use_live_llm', $a)) {
+            config(['market.use_live_llm' => $this->toBool($a['use_live_llm'])]);
+        }
+
+        $this->setIfPresent('market.github_models_endpoint', $a['github_models_endpoint'] ?? null);
+        $this->setIfPresent('market.model_google_search', $a['model_google_search'] ?? null);
+        $this->setIfPresent('market.model_vision', $a['model_vision'] ?? null);
+        $this->setIfPresent('market.search_backend', $a['search_backend'] ?? null);
+        $this->setIfPresent('market.searxng_url', $a['searxng_url'] ?? null);
+        $this->setIfPresent('market.google_ai_mode_gl', $a['google_ai_mode_gl'] ?? null);
+        $this->setIfPresent('market.google_ai_mode_hl', $a['google_ai_mode_hl'] ?? null);
+        $this->setIfPresent('market.google_ai_mode_location', $a['google_ai_mode_location'] ?? null);
+
+        if (array_key_exists('use_google_ai_mode', $a)) {
+            config(['market.use_google_ai_mode' => $this->toBool($a['use_google_ai_mode'])]);
+        }
+
+        $githubToken = $this->settings->getSecure('github_token', 'agent');
+        if ($githubToken !== null) {
+            config(['market.github_token' => $githubToken]);
+        } elseif (filled(env('GITHUB_TOKEN'))) {
+            config(['market.github_token' => env('GITHUB_TOKEN')]);
+        }
+
+        $tavilyKey = $this->settings->getSecure('tavily_api_key', 'agent');
+        if ($tavilyKey !== null) {
+            config(['market.tavily_api_key' => $tavilyKey]);
+        } elseif (filled(env('TAVILY_API_KEY'))) {
+            config(['market.tavily_api_key' => env('TAVILY_API_KEY')]);
+        }
+
+        $serpapiKey = $this->settings->getSecure('serpapi_key', 'agent');
+        if ($serpapiKey !== null) {
+            config(['market.serpapi_key' => $serpapiKey]);
+        } elseif (filled(env('SERPAPI_KEY'))) {
+            config(['market.serpapi_key' => env('SERPAPI_KEY')]);
+        }
+
+        $this->setIfPresent('shipnest.agent.name', $a['agent_name'] ?? null);
+        $this->setIfPresent('shipnest.agent.logo', $a['agent_logo'] ?? null);
+    }
+
+    protected function applyLlmProviders(): void
+    {
+        try {
+            app(LlmProviderManager::class)->migrateLegacyGithubConfig();
+            app(LlmProviderManager::class)->applyRuntimeConfig();
+        } catch (\Throwable) {
+            // Optional during early boot.
         }
     }
 

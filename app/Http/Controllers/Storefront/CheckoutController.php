@@ -80,17 +80,6 @@ class CheckoutController extends Controller
         $firstOrder->setAttribute('total', $paymentAmount);
         $orderIds = $orders->pluck('id')->all();
 
-        $shippingCharge = (float) $orders->sum('shipping_charge');
-
-        if ($paymentMethod === PaymentMethod::Cod && $shippingCharge > 0) {
-            if (empty($validated['cod_shipping_payment'])) {
-                return back()->with('error', 'Please select bKash or Nagad to pay the shipping charge.')->withInput();
-            }
-            if (empty($paymentReference)) {
-                return back()->with('error', 'Please pay the shipping charge first and enter the transaction ID.')->withInput();
-            }
-        }
-
         if ($paymentMethod === PaymentMethod::Stripe && ! $this->paymentService->gatewaySupportsRedirect($paymentMethod)) {
             return back()->with('error', 'Stripe payments are not enabled. Contact support.')->withInput();
         }
@@ -101,7 +90,6 @@ class CheckoutController extends Controller
             $paymentMethod,
             $paymentReference,
             [
-                'cod_shipping_payment' => $validated['cod_shipping_payment'] ?? null,
                 'order_ids' => $orderIds,
                 'payment_amount' => $paymentAmount,
             ],

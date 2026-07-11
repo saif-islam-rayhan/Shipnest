@@ -1,4 +1,5 @@
 /* Merchant panel JS — Chart.js and Quill loaded via CDN in layouts/merchant.blade.php */
+import { bindProductDescriptionAi } from './product-description-ai';
 
 window.initRevenueChart = function (canvasId) {
     const el = document.getElementById(canvasId);
@@ -97,4 +98,26 @@ window.initProductQuill = function () {
     if (input?.value) {
         quillInstance.root.innerHTML = input.value;
     }
+
+    bindProductDescriptionAi(quillInstance, {
+        url: editor.dataset.generateUrl,
+        form: editor.closest('form'),
+    });
 };
+
+function bootProductQuillWhenReady() {
+    if (!document.getElementById('quill-editor') || !document.getElementById('description-input')) {
+        return;
+    }
+    if (typeof Quill === 'undefined') {
+        setTimeout(bootProductQuillWhenReady, 40);
+        return;
+    }
+    window.initProductQuill();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootProductQuillWhenReady);
+} else {
+    bootProductQuillWhenReady();
+}

@@ -28,6 +28,16 @@
       </form>
 
       <div class="flex items-center gap-3 ml-auto">
+        @if(config('shipnest.localization.language_switcher_enabled', true))
+          <div class="hidden sm:flex items-center gap-1 text-white text-xs">
+            @foreach(config('shipnest.localization.available_locales', ['en']) as $localeCode)
+              <a href="{{ route('locale.switch', $localeCode) }}"
+                 class="px-2 py-1 rounded {{ app()->getLocale() === $localeCode ? 'bg-primary text-white' : 'hover:text-primary-300' }}">
+                {{ config('shipnest.localization.locale_labels')[$localeCode] ?? strtoupper($localeCode) }}
+              </a>
+            @endforeach
+          </div>
+        @endif
         @auth
           <div class="relative" x-data="{ open: false }">
             <button @click="open = !open" class="flex items-center gap-2 text-white hover:text-primary-300 text-sm">
@@ -52,8 +62,8 @@
             </div>
           </div>
         @else
-          <a href="{{ route('login') }}" class="text-white hover:text-primary-300 text-sm font-medium">Login</a>
-          <a href="{{ route('register') }}" class="btn-primary text-sm py-1.5">Register</a>
+          <a href="{{ route('login') }}" class="text-white hover:text-primary-300 text-sm font-medium">{{ __('messages.login') }}</a>
+          <a href="{{ route('register') }}" class="btn-primary text-sm py-1.5">{{ __('messages.register') }}</a>
         @endauth
 
         <a href="{{ route('cart.index') }}" class="relative text-white hover:text-primary-300">
@@ -73,8 +83,8 @@
   <nav class="bg-primary">
     <div class="max-w-7xl mx-auto px-4">
       <ul class="flex items-center gap-6 py-2 text-sm font-medium text-white overflow-x-auto">
-        <li><a href="{{ route('home') }}" class="hover:text-secondary-100 whitespace-nowrap">Home</a></li>
-        <li><a href="{{ route('products.index') }}" class="hover:text-secondary-100 whitespace-nowrap">All Products</a></li>
+        <li><a href="{{ route('home') }}" class="hover:text-secondary-100 whitespace-nowrap">{{ __('messages.home') }}</a></li>
+        <li><a href="{{ route('products.index') }}" class="hover:text-secondary-100 whitespace-nowrap">{{ __('messages.all_products') }}</a></li>
         <li><a href="{{ route('products.index', ['sort' => 'popular']) }}" class="hover:text-secondary-100 whitespace-nowrap">Best Sellers</a></li>
         <li><a href="{{ route('register', ['role' => 'merchant']) }}" class="hover:text-secondary-100 whitespace-nowrap">Sell on ShipNest</a></li>
       </ul>

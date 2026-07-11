@@ -19,11 +19,13 @@ class DashboardController extends Controller
     {
         $stats = $this->analytics->dashboardStats();
         $chart = $this->analytics->revenueLast30Days();
+        $ordersChart = $this->analytics->ordersLast7Days();
+        $usersChart = $this->analytics->newUsersLast30Days();
         $statusBreakdown = $this->analytics->orderStatusBreakdown();
 
         $recentOrders = Order::query()->with(['user', 'shop'])->latest()->limit(8)->get();
         $pendingMerchants = Merchant::query()->with('owner')->where('status', 'pending')->latest()->limit(8)->get();
 
-        return view('admin.dashboard', compact('stats', 'chart', 'statusBreakdown', 'recentOrders', 'pendingMerchants'));
+        return view('admin.dashboard', compact('stats', 'chart', 'ordersChart', 'usersChart', 'statusBreakdown', 'recentOrders', 'pendingMerchants'));
     }
 }

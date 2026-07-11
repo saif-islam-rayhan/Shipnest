@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Storefront;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Models\PaymentTransaction;
 use App\Services\OrderService;
 use App\Services\PaymentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class OrderController extends Controller
@@ -66,10 +68,14 @@ class OrderController extends Controller
         } catch (\Throwable $e) {
             report($e);
 
+            $this->restoreAuthFromPaymentPayload($request);
+
             return redirect()
                 ->route('account.orders.index')
                 ->with('error', 'Payment could not be verified. Please check your orders or contact support.');
         }
+
+        $this->restoreAuthFromPayment($result['payment'] ?? null);
 
         $flashKey = ($result['success'] ?? false) ? 'success' : 'error';
         $flashMessage = $result['flash'] ?? (($result['success'] ?? false)
@@ -86,5 +92,40 @@ class OrderController extends Controller
 
         return redirect($result['redirect_url'])->with($flashKey, $flashMessage);
     }
-    
+
+    /**
+     * SSLCommerz returns via cross-site POST without the session cookie (SameSite=Lax).
+     * Laravel then starts a new empty session — re-login from the payment record.
+     */
+    private function restoreAuthFromPayment(?PaymentTransaction $payment): void
+    {
+        if (Auth::check() || ! $payment) {
+            return;
+        }
+
+        $payment->loadMissing(['user', 'order.user']);
+        $user = $payment->user ?? $payment->order?->user;
+
+        if (! $user) {
+            return;
+        }
+
+        Auth::login($user);
+        request()->session()->regenerate();
+    }
+
+    private function restoreAuthFromPaymentPayload(Request $request): void
+    {
+        $tranId = $request->input('tran_id') ?? $request->input('transaction_id');
+
+        if (! filled($tranId)) {
+            return;
+        }
+
+        $payment = PaymentTransaction::query()
+            ->where('transaction_id', $tranId)
+            ->first();
+
+        $this->restoreAuthFromPayment($payment);
+    }
 }

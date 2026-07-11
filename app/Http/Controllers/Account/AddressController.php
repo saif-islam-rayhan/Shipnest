@@ -58,6 +58,8 @@ class AddressController extends Controller
             'district' => $data['district'],
             'thana' => $data['thana'] ?? null,
             'postal_code' => $data['postal_code'] ?? null,
+            'latitude' => $data['latitude'] ?? null,
+            'longitude' => $data['longitude'] ?? null,
             'is_default' => $data['is_default'] ?? false,
         ]);
 
@@ -103,6 +105,8 @@ class AddressController extends Controller
             'district' => $data['district'],
             'thana' => $data['thana'] ?? null,
             'postal_code' => $data['postal_code'] ?? null,
+            'latitude' => $data['latitude'] ?? null,
+            'longitude' => $data['longitude'] ?? null,
             'is_default' => $data['is_default'] ?? false,
         ]);
     }

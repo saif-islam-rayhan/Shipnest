@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth\Concerns;
 
 use App\Models\User;
 use App\Services\CartService;
+use App\Services\UserInterestService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,6 +17,7 @@ trait AuthenticatesUsers
         $request->session()->regenerate();
 
         app(CartService::class)->mergeGuestCart($user);
+        app(UserInterestService::class)->mergeGuestSession($user, $request->session()->getId());
 
         return redirect()->intended($this->redirectPath($user))
             ->with('success', 'Welcome back, '.$user->name.'!');

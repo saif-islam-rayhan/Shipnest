@@ -2,9 +2,11 @@
 
 namespace App\Services\Market;
 
+use App\Services\Market\Llm\LlmProviderManager;
 use App\Models\ChatSession;
 use App\Models\Product;
 use App\Services\CartService;
+use Illuminate\Http\UploadedFile;
 
 class DemandChatAgent
 {
@@ -21,6 +23,12 @@ class DemandChatAgent
         'ai product kinte', 'ei product kinte', 'eita kinbo',
     ];
 
+    private const ORDER_KW = [
+        'order korte chai', 'order korte cai', 'order korbo', 'order koro', 'order korte',
+        'order dite chai', 'place order', 'order this', 'order it',
+        'অর্ডার করতে চাই', 'অর্ডার করব', 'অর্ডার দিতে চাই', 'অর্ডার করো',
+    ];
+
     private const CONFIRM_YES = ['yes', 'হ্যাঁ', 'হ্যা', 'ha', 'haa', 'hmm yes', 'ok', 'okay', 'ঠিক আছে', 'যোগ করো', 'add koro'];
 
     private const CONFIRM_NO = ['no', 'না', 'na', 'nope', 'cancel', 'বাতিল'];
@@ -30,82 +38,154 @@ class DemandChatAgent
         private TrendingProductAgent $trendingProductAgent,
         private GoogleQaAgent $qaAgent,
         private PlatformProductAgent $platformAgent,
+        private AdminProductCreateAgent $productCreateAgent,
         private QueryIntentClassifier $intentClassifier,
         private InputParsers $inputParsers,
         private GooglePeriodParser $periodParser,
         private CartService $cartService,
+        private LlmClient $llm,
+        private ImageProductSearchAgent $imageProductSearchAgent,
     ) {}
 
     /**
      * @param  array<string, mixed>|null  $selectedProduct
      * @param  array<int, array<string, mixed>>  $contextProducts
+     * @param  array<int, UploadedFile>  $uploadedImages
      * @return array{content: string, meta: array<string, mixed>}
      */
-    public function handle(ChatSession $session, string $message, ?array $selectedProduct = null, array $contextProducts = []): array
-    {
+    public function handle(
+        ChatSession $session,
+        string $message,
+        ?array $selectedProduct = null,
+        array $contextProducts = [],
+        bool $adminPanel = false,
+        array $uploadedImages = [],
+        ?int $productId = null,
+    ): array {
         $msg = trim($message);
+
+        if ($uploadedImages !== []) {
+            if ($adminPanel && $this->productCreateAgent->isProductCreateStep($session->step)) {
+                return $this->productCreateAgent->handle($session, $msg, $uploadedImages, $productId);
+            }
+
+            if ($adminPanel && $this->productCreateAgent->isCreateIntent($msg)) {
+                return $this->productCreateAgent->handle($session, $msg, $uploadedImages, $productId);
+            }
+
+            if ($adminPanel && $this->isImageAttachIntent($msg)) {
+                $attachProductId = $productId ?? $session->last_product_id;
+                if ($attachProductId) {
+                    return $this->productCreateAgent->handle($session, $msg, $uploadedImages, (int) $attachProductId);
+                }
+            }
+
+            return $this->imageProductSearchAgent->search($uploadedImages, $msg);
+        }
+
         if ($msg === '') {
             return AgentResponseBuilder::make(
-                "প্রশ্ন লিখুন:\n• `category fashion june 2026 500-600 tk kon product trending`\n• `turbo fan market demand kemon`",
-                ['follow_ups' => AgentResponseBuilder::defaultFollowUps()],
+                $this->agentEmptyPrompt($adminPanel),
+                ['follow_ups' => $this->agentFollowUps()],
+            );
+        }
+
+        if ($uploadedImages === [] && $this->isImageLookupIntent($msg)) {
+            return AgentResponseBuilder::make(
+                "📷 **Product image দরকার**\n\n"
+                ."কোনো product আছে কিনা বা কী product সেটা জানতে **📎 image upload** করুন, তারপর জিজ্ঞাসা করুন (যেমন `ata ki ace?`)।\n\n"
+                .'Image ছাড়া শুধু text দিয়ে visual product search করা যায় না।',
+                [
+                    'type' => 'prompt',
+                    'follow_ups' => ['watch', 'earbuds', 'trending product ki?'],
+                ],
             );
         }
 
         $lower = strtolower($msg);
         foreach (self::CANCEL_KW as $kw) {
             if (str_contains($lower, $kw)) {
+                $this->productCreateAgent->resetProductCreate($session);
                 $this->resetSession($session);
 
                 return AgentResponseBuilder::make(
                     '✅ Reset হয়েছে। নতুন প্রশ্ন লিখুন।',
-                    ['type' => 'system', 'follow_ups' => AgentResponseBuilder::defaultFollowUps()],
+                    [
+                        'type' => 'system',
+                        'follow_ups' => $this->agentFollowUps(),
+                    ],
                 );
             }
         }
 
-        if ($session->step === 'confirm_cart_add') {
-            if ($this->isCartConfirmationReply($lower)) {
-                return $this->handleCartConfirmation($session, $msg);
+        if ($this->productCreateAgent->isProductCreateStep($session->step)) {
+            if (! $adminPanel) {
+                return AgentResponseBuilder::make(
+                    '⚠️ Product create flow চলছে — শুধুমাত্র **Admin panel** (`/admin/agent`) থেকে সম্পন্ন করুন।',
+                    ['type' => 'error', 'follow_ups' => ['watch', 'trending product ki?']],
+                );
             }
-            $session->update(['step' => 'idle', 'pending_cart_product_id' => null]);
+
+            return $this->productCreateAgent->handle($session, $msg, $uploadedImages, $productId);
         }
 
-        if ($this->isCartOrPurchaseIntent($lower)) {
-            return $this->handleCartAddRequest($session, $msg, $selectedProduct, $contextProducts);
+        if ($this->productCreateAgent->isCreateIntent($msg)
+            || $this->intentClassifier->isProductCreateIntent($msg)) {
+            return $this->delegateProductCreate($session, $msg, $adminPanel, $uploadedImages, $productId);
         }
 
-        if (preg_match('/^view\s+cart$/i', trim($message))) {
-            return AgentResponseBuilder::make(
-                '🛒 Cart দেখতে নিচের লিংক ব্যবহার করুন।',
-                [
-                    'type' => 'system',
-                    'cart_url' => route('cart.index'),
-                    'follow_ups' => ['checkout', 'watch'],
-                ],
-            );
+        if (! $adminPanel) {
+            if ($session->step === 'confirm_cart_add') {
+                if ($this->isCartConfirmationReply($lower)) {
+                    return $this->handleCartConfirmation($session, $msg);
+                }
+                $session->update(['step' => 'idle', 'pending_cart_product_id' => null]);
+            }
+
+            if ($this->isOrderOnlyMention($lower)) {
+                return $this->handleOrderOptions();
+            }
+
+            if ($this->isCartOrPurchaseIntent($lower)) {
+                return $this->handleCartAddRequest($session, $msg, $selectedProduct, $contextProducts);
+            }
+
+            if (preg_match('/^checkout$/i', trim($message))) {
+                return $this->handleCheckoutPrompt();
+            }
         }
 
-        if (preg_match('/^checkout$/i', trim($message))) {
-            return AgentResponseBuilder::make(
-                '💳 Checkout করতে cart থেকে এগিয়ে যান।',
-                [
-                    'type' => 'system',
-                    'checkout_url' => route('checkout.index'),
-                    'cart_url' => route('cart.index'),
-                    'follow_ups' => ['view cart', 'watch'],
-                ],
-            );
+        // Cart contents — storefront FAB + admin agent both
+        if ($this->isViewCartIntent($lower)) {
+            return $this->handleViewCartContents();
         }
 
         if (in_array($lower, ['help', 'সাহায্য'], true)) {
-            return AgentResponseBuilder::make($this->helpMessage(), [
-                'follow_ups' => AgentResponseBuilder::defaultFollowUps(),
-            ]);
+            return AgentResponseBuilder::make(
+                $this->agentHelpMessage($adminPanel),
+                ['follow_ups' => $this->agentFollowUps()],
+            );
+        }
+
+        if ($session->step === 'idle' && $this->shouldWelcomeWithTrending($msg)) {
+            return $this->handleGreeting($msg, $adminPanel);
+        }
+
+        $parsed = $this->parser->parse($msg);
+
+        if ($this->isShipNestTrendingQuery($msg, $parsed)) {
+            if ($session->step !== 'idle') {
+                $this->resetSession($session);
+            }
+
+            return $this->platformAgent->trending();
         }
 
         if (! config('market.use_live_llm')) {
-            $parsed = $this->parser->parse($msg);
             $intent = $this->intentClassifier->classify($msg, $parsed);
+            if ($intent === QueryIntent::PRODUCT_CREATE) {
+                return $this->delegateProductCreate($session, $msg, $adminPanel, $uploadedImages, $productId);
+            }
             if ($intent === QueryIntent::PLATFORM_SEARCH) {
                 return $this->platformAgent->search($msg, $parsed);
             }
@@ -125,8 +205,11 @@ class DemandChatAgent
             );
         }
 
-        $parsed = $this->parser->parse($msg);
         $intent = $this->intentClassifier->classify($msg, $parsed);
+
+        if ($intent === QueryIntent::PRODUCT_CREATE) {
+            return $this->delegateProductCreate($session, $msg, $adminPanel, $uploadedImages, $productId);
+        }
 
         // Product name always wins — even mid trending wizard (e.g. user types "smart watch")
         if ($intent === QueryIntent::PLATFORM_SEARCH) {
@@ -188,10 +271,6 @@ class DemandChatAgent
 
         return $qaReply;
     }
-
-    /**
-     * @return string|array{content: string, meta: array<string, mixed>}
-     */
     private function handleStep(ChatSession $session, string $msg): string|array
     {
         return match ($session->step) {
@@ -489,14 +568,21 @@ class DemandChatAgent
         }
 
         $nameFromMessage = $this->extractProductNameFromIntentMessage($message);
+        $recentProducts = $contextProducts !== [] ? $contextProducts : $this->getRecentPlatformProducts($session);
+
         if ($nameFromMessage !== '') {
             $product = $this->findProductByName($nameFromMessage);
             if ($product) {
                 return $product;
             }
-        }
 
-        $recentProducts = $contextProducts !== [] ? $contextProducts : $this->getRecentPlatformProducts($session);
+            if ($recentProducts !== []) {
+                $product = $this->matchFromRecentList($nameFromMessage, $recentProducts);
+                if ($product) {
+                    return $product;
+                }
+            }
+        }
 
         if (count($recentProducts) === 1) {
             $id = $recentProducts[0]['id'] ?? $recentProducts[0]['product_id'] ?? null;
@@ -583,9 +669,59 @@ class DemandChatAgent
             ->where('role', 'assistant')
             ->orderByDesc('id')
             ->get()
-            ->first(fn ($m) => ($m->meta['type'] ?? '') === 'platform' && ! empty($m->meta['products']));
+            ->first(function ($m) {
+                if (($m->meta['type'] ?? '') !== 'platform') {
+                    return false;
+                }
 
-        return $message?->meta['products'] ?? [];
+                $meta = $m->meta ?? [];
+
+                return ! empty($meta['products'])
+                    || ! empty($meta['products_all'])
+                    || ! empty($meta['trending_products_all'])
+                    || ! empty($meta['trending_products']);
+            });
+
+        if (! $message) {
+            return [];
+        }
+
+        $meta = $message->meta ?? [];
+
+        return $this->dedupeProductList(array_merge(
+            $meta['products'] ?? [],
+            $meta['products_all'] ?? [],
+            $meta['trending_products_all'] ?? [],
+            $meta['trending_products'] ?? [],
+        ));
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $products
+     * @return array<int, array<string, mixed>>
+     */
+    private function dedupeProductList(array $products): array
+    {
+        $seen = [];
+        $result = [];
+
+        foreach ($products as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $id = $item['id'] ?? $item['product_id'] ?? null;
+            $key = $id ? 'id:'.$id : 'name:'.strtolower(trim((string) ($item['name'] ?? '')));
+
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $result[] = $item;
+        }
+
+        return $result;
     }
 
     private function extractProductNameFromIntentMessage(string $message): string
@@ -610,7 +746,186 @@ class DemandChatAgent
             $clean = preg_replace($pattern, '', $clean) ?? $clean;
         }
 
+        $clean = preg_replace('/\s+(ata|eita|ei|oi|ai|eta|oita)\s*$/ui', '', $clean) ?? $clean;
+        $clean = preg_replace('/^(ata|eita|ei|oi|ai|eta|oita)\s+/ui', '', $clean) ?? $clean;
+
         return trim($clean);
+    }
+
+    private function isOrderOnlyMention(string $lower): bool
+    {
+        if ($this->isCartOrPurchaseIntent($lower)) {
+            return false;
+        }
+
+        foreach (self::ORDER_KW as $kw) {
+            if (str_contains($lower, $kw)) {
+                return true;
+            }
+        }
+
+        return (bool) preg_match('/\b(order|অর্ডার)\b.*\b(kor[teo]|dite|place)\b/ui', $lower);
+    }
+
+    /**
+     * @return array{content: string, meta: array<string, mixed>}
+     */
+    private function handleOrderOptions(): array
+    {
+        $isGuest = ! auth()->check();
+
+        $content = "📦 **Order করতে:**\n\n"
+            ."1. Product খুঁজুন (যেমন `watch`)\n"
+            ."2. Cart-এ add করুন (`cart a add koro`)\n"
+            ."3. Cart থেকে checkout করুন\n\n";
+
+        if ($isGuest) {
+            $content .= 'ℹ️ Cart add **login ছাড়াই** করা যায়। Checkout-এর জন্য login করতে হবে।';
+        } else {
+            $content .= '🛒 `view cart` বা `checkout` লিখে এগিয়ে যান।';
+        }
+
+        return AgentResponseBuilder::make($content, [
+            'type' => 'system',
+            'cart_url' => route('cart.index'),
+            'checkout_url' => $isGuest ? route('login') : route('checkout.index'),
+            'follow_ups' => $isGuest
+                ? ['watch', 'view cart', 'help']
+                : ['view cart', 'checkout', 'watch'],
+        ]);
+    }
+
+    /**
+     * @return array{content: string, meta: array<string, mixed>}
+     */
+    private function handleCheckoutPrompt(): array
+    {
+        if (! auth()->check()) {
+            return AgentResponseBuilder::make(
+                "💳 Checkout করতে **login** করতে হবে।\n\n"
+                .'Cart add login ছাড়াই করা যায় — আগে product cart-এ যোগ করুন, তারপর login করে checkout করুন।',
+                [
+                    'type' => 'system',
+                    'cart_url' => route('cart.index'),
+                    'checkout_url' => route('login'),
+                    'follow_ups' => ['watch', 'view cart', 'help'],
+                ],
+            );
+        }
+
+        return AgentResponseBuilder::make(
+            '💳 Checkout করতে cart থেকে এগিয়ে যান।',
+            [
+                'type' => 'system',
+                'checkout_url' => route('checkout.index'),
+                'cart_url' => route('cart.index'),
+                'follow_ups' => ['view cart', 'watch'],
+            ],
+        );
+    }
+
+    /**
+     * @return array{content: string, meta: array<string, mixed>}
+     */
+    private function handleViewCartContents(): array
+    {
+        $cart = $this->cartService->getCart(auth()->user());
+        $cart->loadMissing(['items.product', 'items.variant']);
+        $items = $cart->items;
+        $isGuest = ! auth()->check();
+        $checkoutUrl = $isGuest ? route('login') : route('checkout.index');
+
+        if ($items->isEmpty()) {
+            return AgentResponseBuilder::make(
+                "🛒 আপনার cart-এ এখন **কোনো product add নেই**।\n\n"
+                ."Product add করতে:\n"
+                ."• Product-এর **নাম** বলুন (যেমন `watch`), তারপর `cart a add koro`\n"
+                ."• অথবা product card-এ **Add to cart** এ click করুন",
+                [
+                    'type' => 'cart_contents',
+                    'cart_url' => route('cart.index'),
+                    'follow_ups' => ['watch', 'earbuds', 'trending product ki?'],
+                    'show_content' => true,
+                ],
+            );
+        }
+
+        $totals = $this->cartService->getTotals($cart);
+        $symbol = config('shipnest.currency_symbol', '৳');
+        $lines = [];
+        $n = 1;
+
+        foreach ($items as $item) {
+            $name = $item->product?->name ?? 'Product';
+            $variant = $item->variant?->name;
+            if ($variant && strcasecmp($variant, 'Default') !== 0) {
+                $name .= " ({$variant})";
+            }
+
+            $qty = (int) $item->quantity;
+            $unit = $item->formatted_price;
+            $line = $item->formatted_line_total;
+            $lines[] = "{$n}. **{$name}** × {$qty} — {$unit} (মোট {$line})";
+            $n++;
+        }
+
+        $subtotal = $symbol.number_format((float) $totals['subtotal'], 2);
+        $total = $symbol.number_format((float) $totals['total'], 2);
+        $count = (int) $totals['item_count'];
+
+        $content = "✅ আপনার cart-এ **{$count}টি product** add আছে:\n\n"
+            .implode("\n", $lines)
+            ."\n\n**Subtotal:** {$subtotal}";
+
+        if ((float) $totals['discount'] > 0) {
+            $discount = $symbol.number_format((float) $totals['discount'], 2);
+            $content .= "\n**Discount:** -{$discount}";
+        }
+
+        $content .= "\n**Total:** {$total}\n\n"
+            .'Checkout করতে নিচের **Checkout** বাটনে click করুন।';
+
+        return AgentResponseBuilder::make($content, [
+            'type' => 'cart_contents',
+            'cart_url' => route('cart.index'),
+            'checkout_url' => $checkoutUrl,
+            'follow_ups' => ['checkout', 'watch'],
+            'show_content' => true,
+        ]);
+    }
+
+    private function isViewCartIntent(string $lower): bool
+    {
+        if ($this->isCartAddIntent($lower) || $this->isPurchaseIntent($lower)) {
+            return false;
+        }
+
+        $trimmed = trim(preg_replace('/[?؟!.]+$/u', '', $lower) ?? $lower);
+
+        if (preg_match('/^(view\s+cart|show\s+cart|see\s+cart|my\s+cart|cart|কার্ট)$/ui', $trimmed)) {
+            return true;
+        }
+
+        $patterns = [
+            '/\b(view|show|see|check|open)\s+(my\s+)?cart\b/ui',
+            '/\bwhat(\'s|s|\s+is)?\s+in\s+(my\s+)?cart\b/ui',
+            '/\b(my\s+)?cart\s+(items?|contents?|list)\b/ui',
+            '/\bamar\s+cart\b/ui',
+            '/\bcart\s*(e|a|te)?\s*(ki|kii|ki\s+ki)\b/ui',
+            '/\bcart\s*(e|a|te)?\s*(ki|kii)?\s*(ace|ase|ache|acha|aso)\b/ui',
+            '/\bcart\s+(dekho|dekhte|dekhai|dekhao|bolo|bol)\b/ui',
+            '/কার্টে\s*(কি|কী)/u',
+            '/আমার\s*কার্ট/u',
+            '/কার্ট\s*(দেখ|বল)/u',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $trimmed) || preg_match($pattern, $lower)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function isCartOrPurchaseIntent(string $lower): bool
@@ -666,21 +981,296 @@ class DemandChatAgent
         return false;
     }
 
-    private function helpMessage(): string
+    private function isImageAttachIntent(string $message): bool
     {
-        return <<<'HELP'
-🔍 **ShipNest AI Agent**
+        $lower = strtolower(trim($message));
+        if ($lower === '') {
+            return false;
+        }
 
-**যেকোনো প্রশ্ন করুন:**
-• `What is the capital of France?`
-• `trending product ki?`
-• `Bangladesh e-commerce market kemon?`
+        $keywords = [
+            'add image', 'upload image', 'attach image', 'image add', 'image upload',
+            'ছবি যোগ', 'ছবি দাও', 'ইমেজ যোগ', 'image দাও', 'photo add',
+        ];
 
-**Product search (ShipNest catalog):**
-• `watch` / `kurti` / `earbuds`
+        foreach ($keywords as $kw) {
+            if (str_contains($lower, $kw)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isImageLookupIntent(string $message): bool
+    {
+        $lower = strtolower(trim($message));
+        if ($lower === '') {
+            return false;
+        }
+
+        if ($this->productCreateAgent->isCreateIntent($message)) {
+            return false;
+        }
+
+        $patterns = [
+            '/\b(ata|eita|ei|ai|eta)\b.*\b(ache|ase|ki|kina|ache\s*kina)\b/ui',
+            '/\b(ata|eita)\s+ki\b/ui',
+            '/\b(ki\s+ache|ache\s+ki|ki\s+ase)\b/ui',
+            '/\b(ei|ai)\s+product\b/ui',
+            '/\bproduct\s+ta\s+(ache|ase|ki)\b/ui',
+            '/\b(এটা|আছে\s*কি|কি\s*আছে|এই\s*প্রোডাক্ট)\b/u',
+            '/\b(identify|find)\s+(this\s+)?product\b/i',
+            '/\bwhat\s+is\s+this\b/i',
+            '/\bwhat\s+product\s+is\s+this\b/i',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $lower) || preg_match($pattern, $message)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function agentEmptyPrompt(bool $adminPanel): string
+    {
+        $cartHint = $adminPanel ? '' : "\n• Product select → `cart a add koro` — cart-এ যোগ";
+        $name = $this->agentName();
+
+        return <<<PROMPT
+🛠️ **{$name}**
+
+সরাসরি কাজ করুন:
+• `create product` — নতুন product তৈরি
+• 📷 Product image upload — catalog-এ আছে কিনা খুঁজুন
+• `watch` / `kurti` — catalog search
+• `trending product ki?` — ShipNest trending + cart{$cartHint}
+
+`help` — সব command দেখুন
+PROMPT;
+    }
+
+    private function agentHelpMessage(bool $adminPanel): string
+    {
+        $cartSection = $adminPanel ? '' : <<<'CART'
+
+**Cart (ShipNest catalog):**
 • Product select করুন → `cart a add koro` → `yes`
+• `amar cart e ki ki ace` / `view cart` — cart-এর product list
+• `checkout`
+CART;
+
+        $name = $this->agentName();
+
+        return <<<HELP
+🛠️ **{$name}**
+
+**Product create:**
+• `create product`
+• `create product: merchant: Shop, name: Smart Watch, category: Electronics, price: 2500, stock: 50`
+• `attributes: Color: Black, Size: M`
+
+**Catalog & research:**
+• 📷 Product image upload — catalog search (আছে কিনা + related products)
+• `watch` / `earbuds` — ShipNest catalog search
+• `trending product ki?` — ShipNest trending products
+• `category fashion june 2026 kon product trending`{$cartSection}
 
 `cancel` — reset
 HELP;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function agentFollowUps(): array
+    {
+        return [
+            'create product',
+            'watch',
+            'earbuds',
+            'trending product ki?',
+        ];
+    }
+
+    /**
+     * @return array{content: string, meta: array<string, mixed>}
+     */
+    private function handleGreeting(string $msg, bool $adminPanel): array
+    {
+        $trending = $this->platformAgent->trending();
+        [$greeting, $usedLlm] = $this->buildGreetingReply($msg, $adminPanel);
+        $hasProducts = ! empty($trending['meta']['products']);
+
+        $trending['content'] = $hasProducts
+            ? $greeting
+            : $greeting."\n\n".$trending['content'];
+        $trending['meta']['greeting'] = true;
+        $trending['meta']['show_content'] = true;
+        $trending['meta']['catalog_mode'] = 'trending';
+        $trending['meta']['thought_process'] = array_merge(
+            [
+                $usedLlm
+                    ? 'Conversational message → LLM reply + ShipNest trending catalog'
+                    : 'Conversational message → welcome reply + ShipNest trending catalog',
+            ],
+            $trending['meta']['thought_process'] ?? [],
+        );
+
+        return $trending;
+    }
+
+    /**
+     * @return array{0: string, 1: bool}
+     */
+    private function buildGreetingReply(string $msg, bool $adminPanel): array
+    {
+        if (app(LlmProviderManager::class)->isReady()) {
+            try {
+                return [$this->generateLlmGreetingReply($msg, $adminPanel), true];
+            } catch (\Throwable) {
+                // fall back to template reply
+            }
+        }
+
+        return [$this->greetingMessage($msg, $adminPanel), false];
+    }
+
+    private function generateLlmGreetingReply(string $msg, bool $adminPanel): string
+    {
+        $agentName = $this->agentName();
+        $siteName = config('shipnest.name', 'ShipNest');
+        $systemPrompt = <<<PROMPT
+You are {$agentName}, a warm and helpful ecommerce assistant for Bangladesh.
+The user sent a casual or greeting message — NOT a product search.
+
+Reply naturally in Bangla mixed with English (2-4 short sentences):
+- Respond directly to what they said (if they ask how you are, answer warmly first).
+- Briefly mention {$siteName} is a trusted ecommerce marketplace where they can shop easily.
+- Do NOT search for products. Do NOT say "no products found". Do NOT list product names.
+- Do NOT use numbered lists, bullet points, or demo/example phrases.
+- Keep it conversational like a real chat assistant.
+PROMPT;
+
+        $body = trim($this->llm->chat(
+            config('market.model_google_search'),
+            $systemPrompt,
+            'User message: '.trim($msg),
+            temperature: 0.5,
+        ));
+
+        if ($body === '') {
+            throw new \RuntimeException('Empty LLM greeting reply');
+        }
+
+        $cartHint = $adminPanel
+            ? ''
+            : "\n\n🛒 Product পছন্দ হলে select করে `cart a add koro` লিখুন — **login লাগবে না**।";
+
+        return $body.$cartHint."\n\n🔥 নিচে কিছু **Trending Products** দেখুন:";
+    }
+
+    private function greetingMessage(string $msg, bool $adminPanel): string
+    {
+        $original = trim($msg);
+        $normalized = $this->normalizeChatMessage($msg);
+        $agentName = $this->agentName();
+        $siteName = config('shipnest.name', 'ShipNest');
+
+        $opening = match (true) {
+            in_array($normalized, ['hy', 'hii', 'hiii'], true) => '👋 **হ্যাই!** `'.$original.'` — '.$siteName.'-এ স্বাগতম!',
+            in_array($normalized, ['hi', 'hey', 'hlo', 'yo', 'sup'], true) => '👋 **Hi!** `'.$original.'` পেয়েছি — কীভাবে সাহায্য করব?',
+            in_array($normalized, ['hello', 'helo', 'halo', 'hola'], true) => '👋 **Hello!** `'.$original.'` — '.$agentName.' ready!',
+            $normalized === 'হ্যালো' => '👋 **হ্যালো!** আপনাকে পেয়ে ভালো লাগলো।',
+            $normalized === 'হাই' => '👋 **হাই!** '.$siteName.'-এ আপনাকে স্বাগতম।',
+            str_contains($normalized, 'নমস্কার') => '🙏 **নমস্কার!** '.$siteName.'-এ আপনাকে স্বাগতম।',
+            str_contains($normalized, 'assalamu') || str_contains($normalized, 'salam alaikum') => '🙏 **ওয়ালাইকুম আসসালাম ওয়া রহমাতুল্লাহি ওয়া বারাকাতুহু!**',
+            str_contains($normalized, 'salam') || str_contains($normalized, 'salaam') || str_contains($normalized, 'আসসালাম') => '🙏 **ওয়ালাইকুম আসসালাম!** '.$agentName.'-তে স্বাগতম।',
+            str_contains($normalized, 'good night') => '🌙 **Good night!** '.$siteName.'-এ আপনাকে স্বাগতম।',
+            str_contains($normalized, 'good morning') => '🌅 **Good morning!** '.$siteName.'-এ আপনাকে স্বাগতম।',
+            str_contains($normalized, 'good afternoon') => '☀️ **Good afternoon!** '.$siteName.'-এ আপনাকে স্বাগতম।',
+            str_contains($normalized, 'good evening') => '🌆 **Good evening!** '.$siteName.'-এ আপনাকে স্বাগতম।',
+            str_contains($normalized, 'kemon acho') || str_contains($normalized, 'kemon achen') || str_contains($normalized, 'kemon aso')
+                || preg_match('/\bkemon\s+a[csz]o\b/ui', $normalized) => '👋 **ভালো আছি, ধন্যবাদ জিজ্ঞাসা করার জন্য!** `'.$original.'`',
+            str_contains($normalized, 'ki obostha') || str_contains($normalized, 'ki obosta') => '🙂 **সব ঠিক আছে!** আপনার কী অবস্থা?',
+            str_contains($normalized, 'ki khobor') || str_contains($normalized, 'ki khabar') => '🙂 **আলহামদুলিল্লাহ, ভালো!** আপনার কী খবর?',
+            str_contains($normalized, 'thank you') || str_contains($normalized, 'thanks') || str_contains($normalized, 'ধন্যবাদ') => '😊 **আপনাকেও ধন্যবাদ!** `'.$original.'`',
+            default => '👋 আপনি লিখেছেন: **«'.$original.'»** — '.$siteName.'-এ স্বাগতম!',
+        };
+
+        $trust = '**'.$siteName.'** একটি **বিশ্বস্ত ecommerce marketplace** — এখানে quality product, সঠিক দাম, verified seller এবং সহজ shopping experience পাবেন। যা যা চান, সব এক জায়গায়।';
+
+        $cartHint = $adminPanel
+            ? ''
+            : "\n\n🛒 Product select করে `cart a add koro` লিখলে **login ছাড়াই** cart-এ যোগ করতে পারবেন।";
+
+        return $opening."\n\n".$trust.$cartHint."\n\n🔥 আশা করি নিচের **Trending Products** আপনার পছন্দ হবে:";
+    }
+
+    private function shouldWelcomeWithTrending(string $msg): bool
+    {
+        return $this->intentClassifier->isConversationalPhrase($msg);
+    }
+
+    private function normalizeChatMessage(string $msg): string
+    {
+        $normalized = mb_strtolower(trim($msg));
+        $normalized = rtrim($normalized, '!?.।');
+        $normalized = preg_replace('/\s+/u', ' ', $normalized) ?? $normalized;
+
+        return $normalized;
+    }
+
+    private function isShipNestTrendingQuery(string $message, CompositeQuery $parsed): bool
+    {
+        if ($parsed->category || $parsed->period || $parsed->budgetMin !== null || $parsed->budgetMax !== null) {
+            return false;
+        }
+
+        $normalized = strtolower(trim($message));
+        $normalized = rtrim($normalized, '?');
+        $normalized = preg_replace('/\s+/u', ' ', $normalized) ?? $normalized;
+
+        if (preg_match('/\b(shipnest|শিপনেস্ট)\b/ui', $normalized) && preg_match('/\btrending\b/ui', $normalized)) {
+            return true;
+        }
+
+        return (bool) preg_match(
+            '/^(trending\s+product(s)?(\s+ki)?|ট্রেন্ডিং\s+প্রোডাক্ট(\s+কি)?)$/ui',
+            $normalized,
+        );
+    }
+
+    /**
+     * @param  array<int, UploadedFile>  $uploadedImages
+     * @return array{content: string, meta: array<string, mixed>}
+     */
+    private function delegateProductCreate(
+        ChatSession $session,
+        string $msg,
+        bool $adminPanel,
+        array $uploadedImages = [],
+        ?int $productId = null,
+    ): array {
+        if (! $adminPanel) {
+            return AgentResponseBuilder::make(
+                '⚠️ Product create শুধুমাত্র **Admin panel** থেকে করা যায়।\n\n'
+                .'Admin → Agent এ গিয়ে `create product` লিখুন।',
+                ['type' => 'error', 'follow_ups' => ['watch', 'trending product ki?']],
+            );
+        }
+
+        if ($session->step !== 'idle' && ! $this->productCreateAgent->isProductCreateStep($session->step)) {
+            $this->resetSession($session);
+        }
+
+        return $this->productCreateAgent->handle($session, $msg, $uploadedImages, $productId);
+    }
+
+    private function agentName(): string
+    {
+        return (string) config('shipnest.agent.name', 'ShipNest AI');
     }
 }

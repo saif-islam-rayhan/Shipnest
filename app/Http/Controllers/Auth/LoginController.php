@@ -9,6 +9,7 @@ use App\Http\Requests\Auth\OtpLoginRequest;
 use App\Models\User;
 use App\Services\CartService;
 use App\Services\OtpService;
+use App\Services\UserInterestService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -50,6 +51,7 @@ class LoginController extends Controller
         }
 
         $this->cartService->mergeGuestCart($user);
+        app(UserInterestService::class)->mergeGuestSession($user, $request->session()->getId());
 
         return redirect()->intended($this->redirectPath($user))
             ->with('success', 'Welcome back, '.$user->name.'!');

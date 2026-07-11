@@ -1,17 +1,10 @@
 @extends('layouts.admin')
-@section('title','Settings') @section('page-title','Platform Settings')
+@section('title','Settings')
+@section('page-title', ($tab ?? request('tab', 'general')) === 'agent' ? 'Agent Settings' : 'Platform Settings')
 @section('content')
 @php
-    $tabs = [
-        'general' => 'General',
-        'database' => 'Database',
-        'payment' => 'Payment & API Keys',
-        'mail' => 'Mail (SMTP)',
-        'sms' => 'SMS / OTP',
-        'integrations' => 'Integrations',
-        'commission' => 'Commission',
-        'maintenance' => 'Maintenance',
-    ];
+    $tabs = config('admin_settings.tabs', []);
+    $activeTab = array_key_exists($tab, $tabs) ? $tab : 'general';
     $paymentMeta = $paymentMeta ?? [];
     $pwd = function (string $key) use ($hasSecure, $paymentMeta) {
         if (! ($hasSecure[$key] ?? false)) {
@@ -26,19 +19,17 @@
     };
 @endphp
 
-<div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-900">
-    Settings saved here are stored in the database and applied dynamically. Empty password fields keep the existing value. <code class="bg-white px-1 rounded">.env</code> values are used as fallback until you save here.
-</div>
+<div class="settings-panel {{ $activeTab === 'agent' ? 'max-w-6xl' : 'max-w-4xl' }}">
+        @if($activeTab !== 'agent')
+        <div class="settings-panel-header">
+            <h2 class="settings-panel-title">{{ $tabs[$activeTab]['label'] }}</h2>
+            <p class="settings-panel-subtitle">{{ $tabs[$activeTab]['description'] }}</p>
+        </div>
+        @endif
 
-<div class="flex gap-2 mb-6 flex-wrap">
-    @foreach($tabs as $key => $label)
-        <a href="?tab={{ $key }}" class="px-4 py-1.5 rounded-full text-sm {{ $tab===$key ? 'bg-[#F57C00] text-white' : 'bg-white ring-1 ring-gray-200' }}">{{ $label }}</a>
-    @endforeach
-</div>
-
-@if($tab==='maintenance')
-<div class="bg-white rounded-xl ring-1 ring-gray-200 p-6 max-w-lg">
-    <h2 class="font-semibold mb-4">Maintenance Mode</h2>
+@if($activeTab==='maintenance')
+<div class="settings-card max-w-2xl">
+    <h3 class="mb-4 font-semibold text-gray-900">Maintenance Mode</h3>
     <form action="{{ route('admin.settings.maintenance') }}" method="POST" class="space-y-3">@csrf
         <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="maintenance_mode" value="1" @checked(($general['maintenance_mode'] ?? '0')==='1')> Enable maintenance mode</label>
         <div class="form-group">
@@ -48,11 +39,31 @@
         <button class="btn-primary">Save</button>
     </form>
 </div>
+@elseif($activeTab==='security')
+<div class="settings-card max-w-2xl">
+    <h3 class="mb-2 font-semibold text-gray-900">Two-Factor Authentication</h3>
+    <p class="mb-4 text-sm text-gray-600">
+        @if(auth()->user()->google2fa_enabled)
+            2FA is enabled on your admin account.
+        @else
+            Protect your admin account with Google Authenticator or a compatible app.
+        @endif
+    </p>
+    @if(auth()->user()->google2fa_enabled)
+        <form action="{{ route('admin.2fa.disable') }}" method="POST">@csrf
+            <button type="submit" class="btn-outline text-sm text-red-600">Disable 2FA</button>
+        </form>
+    @else
+        <a href="{{ route('admin.2fa.setup') }}" class="btn-primary inline-block text-sm">Set up 2FA</a>
+    @endif
+</div>
+@elseif($activeTab==='agent')
+@include('admin.settings.partials.agent-tab')
 @else
-<form action="{{ route('admin.settings.update') }}" method="POST" enctype="multipart/form-data" class="bg-white rounded-xl ring-1 ring-gray-200 p-6 max-w-3xl space-y-4">@csrf @method('PUT')
-    <input type="hidden" name="group" value="{{ $tab }}">
+<form action="{{ route('admin.settings.update') }}" method="POST" enctype="multipart/form-data" class="settings-card max-w-3xl space-y-4">@csrf @method('PUT')
+    <input type="hidden" name="group" value="{{ $activeTab }}">
 
-    @if($tab==='general')
+    @if($activeTab==='general')
         <h3 class="font-semibold text-gray-800 border-b pb-2">Site Identity</h3>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><label class="form-label">Site Name</label><input name="site_name" value="{{ $general['site_name'] ?? '' }}" class="input-field"></div>
@@ -73,7 +84,34 @@
             <div><label class="form-label">Favicon</label><input type="file" name="favicon" accept="image/*" class="text-sm mt-1"></div>
         </div>
 
-    @elseif($tab==='database')
+        <h3 class="font-semibold text-gray-800 border-b pb-2 pt-4">Google Login</h3>
+        <p class="text-sm text-gray-600">Users can sign in with Google when enabled. Get credentials from <a href="https://console.cloud.google.com/apis/credentials" class="text-primary hover:underline" target="_blank" rel="noopener">Google Cloud Console</a> (OAuth 2.0 Client ID).</p>
+        <label class="flex items-center gap-2 text-sm mt-3">
+            <input type="checkbox" name="google_login_enabled" value="1" @checked(($general['google_login_enabled'] ?? '0') === '1')>
+            Enable Google login on sign-in page
+        </label>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+            <div>
+                <label class="form-label">Google Client ID</label>
+                <input name="google_client_id" value="{{ $general['google_client_id'] ?? '' }}" placeholder="xxxx.apps.googleusercontent.com" class="input-field">
+            </div>
+            <div>
+                <label class="form-label">Google Client Secret</label>
+                <input name="google_client_secret" type="password" placeholder="{{ $pwd('google_client_secret') ?: 'Client secret' }}" class="input-field" autocomplete="new-password">
+            </div>
+            <div class="md:col-span-2">
+                <label class="form-label">Redirect URI</label>
+                <input name="google_redirect_uri" value="{{ $general['google_redirect_uri'] ?? url('/auth/google/callback') }}" placeholder="{{ url('/auth/google/callback') }}" class="input-field">
+                <p class="text-xs text-gray-500 mt-1">Add this exact URL under <strong>Authorized redirect URIs</strong> in Google Cloud Console.</p>
+            </div>
+        </div>
+        @if(($general['google_login_enabled'] ?? '0') === '1' && empty($general['google_client_id']) && !($hasSecure['google_client_secret'] ?? false))
+            <p class="text-xs text-amber-700 bg-amber-50 p-2 rounded-lg mt-2">Google login is enabled but credentials are missing — add Client ID and Secret above.</p>
+        @elseif(($general['google_login_enabled'] ?? '0') === '1' && filled($general['google_client_id'] ?? null) && ($hasSecure['google_client_secret'] ?? false))
+            <p class="text-xs text-green-700 bg-green-50 p-2 rounded-lg mt-2">Google login is configured and ready.</p>
+        @endif
+
+    @elseif($activeTab==='database')
         <p class="text-sm text-amber-700 bg-amber-50 p-3 rounded-lg">Database changes apply on the next request. Wrong credentials can break the site — keep <code>.env</code> as backup.</p>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><label class="form-label">Connection</label><select name="db_connection" class="input-field"><option value="mysql" @selected(($database['db_connection'] ?? 'mysql')==='mysql')>MySQL</option><option value="mariadb" @selected(($database['db_connection'] ?? '')==='mariadb')>MariaDB</option></select></div>
@@ -84,7 +122,7 @@
             <div><label class="form-label">Password</label><input name="db_password" type="password" class="input-field" placeholder="{{ $pwd('db_password') ?: 'Database password' }}" autocomplete="new-password"></div>
         </div>
 
-    @elseif($tab==='payment')
+    @elseif($activeTab==='payment')
         <h3 class="font-semibold text-gray-800">Payment Methods</h3>
         <div class="flex flex-wrap gap-4 text-sm">
             @foreach(['payment_cod_enabled'=>'COD','payment_sslcommerz_enabled'=>'SSLCommerz','payment_bkash_enabled'=>'bKash','payment_nagad_enabled'=>'Nagad','payment_stripe_enabled'=>'Stripe'] as $k=>$label)
@@ -219,7 +257,7 @@
         </div>
         <p class="text-xs text-gray-500">Webhook: <code>{{ url('/payment/webhook/stripe') }}</code></p>
 
-    @elseif($tab==='mail')
+    @elseif($activeTab==='mail')
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><label class="form-label">Mailer</label><select name="mail_mailer" class="input-field"><option value="smtp" @selected(($mail['mail_mailer'] ?? 'smtp')==='smtp')>SMTP</option><option value="log" @selected(($mail['mail_mailer'] ?? '')==='log')>Log (dev)</option></select></div>
             <input name="mail_host" value="{{ $mail['mail_host'] ?? '' }}" placeholder="SMTP Host" class="input-field">
@@ -231,7 +269,7 @@
             <input name="mail_from_name" value="{{ $mail['mail_from_name'] ?? '' }}" placeholder="From Name" class="input-field">
         </div>
 
-    @elseif($tab==='sms')
+    @elseif($activeTab==='sms')
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><label class="form-label">Driver</label><select name="sms_driver" class="input-field"><option value="mock" @selected(($sms['sms_driver'] ?? 'mock')==='mock')>Mock (dev)</option><option value="twilio" @selected(($sms['sms_driver'] ?? '')==='twilio')>Twilio</option></select></div>
             <input name="twilio_sid" value="{{ $sms['twilio_sid'] ?? '' }}" placeholder="Twilio SID" class="input-field">
@@ -240,16 +278,14 @@
             <input name="bulksms_api_key" value="{{ $sms['bulksms_api_key'] ?? '' }}" placeholder="BulkSMS API Key" class="input-field">
         </div>
 
-    @elseif($tab==='integrations')
+    @elseif($activeTab==='integrations')
         <h3 class="font-semibold text-gray-800">Social Login</h3>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input name="google_client_id" value="{{ $integrations['google_client_id'] ?? '' }}" placeholder="Google Client ID" class="input-field">
-            <input name="google_client_secret" type="password" placeholder="{{ $pwd('google_client_secret') ?: 'Google Client Secret' }}" class="input-field" autocomplete="new-password">
-            <input name="google_redirect_uri" value="{{ $integrations['google_redirect_uri'] ?? url('/auth/google/callback') }}" placeholder="Google Redirect URI" class="input-field md:col-span-2">
             <input name="facebook_client_id" value="{{ $integrations['facebook_client_id'] ?? '' }}" placeholder="Facebook App ID" class="input-field">
             <input name="facebook_client_secret" type="password" placeholder="{{ $pwd('facebook_client_secret') ?: 'Facebook App Secret' }}" class="input-field" autocomplete="new-password">
             <input name="facebook_redirect_uri" value="{{ $integrations['facebook_redirect_uri'] ?? url('/auth/facebook/callback') }}" placeholder="Facebook Redirect URI" class="input-field md:col-span-2">
         </div>
+        <p class="text-xs text-gray-500">Google login is configured under <a href="{{ route('admin.settings.edit', ['tab' => 'general']) }}" class="text-primary hover:underline">General settings</a>.</p>
 
         <h3 class="font-semibold text-gray-800 border-t pt-4">Search (MeiliSearch)</h3>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -281,7 +317,62 @@
             <input name="redis_password" type="password" placeholder="{{ $pwd('redis_password') ?: 'Redis Password' }}" class="input-field md:col-span-2" autocomplete="new-password">
         </div>
 
-    @elseif($tab==='commission')
+    @elseif($activeTab==='language')
+        <h3 class="font-semibold text-gray-800 border-b pb-2">Storefront Languages</h3>
+        <p class="text-sm text-gray-600">Enable languages and choose the default locale for new visitors.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="form-label">Default Language</label>
+                <select name="default_locale" class="input-field">
+                    <option value="en" @selected(($language['default_locale'] ?? 'en') === 'en')>English</option>
+                    <option value="bn" @selected(($language['default_locale'] ?? 'en') === 'bn')>বাংলা</option>
+                </select>
+            </div>
+            <div class="flex flex-col gap-2 pt-7 text-sm">
+                <label class="flex items-center gap-2"><input type="checkbox" name="locale_en_enabled" value="1" @checked(($language['locale_en_enabled'] ?? '1') === '1')> Enable English</label>
+                <label class="flex items-center gap-2"><input type="checkbox" name="locale_bn_enabled" value="1" @checked(($language['locale_bn_enabled'] ?? '1') === '1')> Enable বাংলা</label>
+                <label class="flex items-center gap-2"><input type="checkbox" name="language_switcher_enabled" value="1" @checked(($language['language_switcher_enabled'] ?? '1') === '1')> Show language switcher in storefront header</label>
+            </div>
+        </div>
+
+    @elseif($activeTab==='location')
+        <h3 class="font-semibold text-gray-800 border-b pb-2">Map Address Picker</h3>
+        <p class="text-sm text-gray-600">Customers can select delivery location on a map during checkout. Leaflet/OpenStreetMap works without an API key. Google Maps requires an API key.</p>
+        <div class="flex flex-wrap gap-4 text-sm mb-4">
+            <label class="flex items-center gap-2"><input type="checkbox" name="map_enabled" value="1" @checked(($location['map_enabled'] ?? '1') === '1')> Enable map on checkout & address forms</label>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="form-label">Map Provider</label>
+                <select name="map_provider" class="input-field">
+                    <option value="leaflet" @selected(($location['map_provider'] ?? 'leaflet') === 'leaflet')>Leaflet (OpenStreetMap — free)</option>
+                    <option value="google" @selected(($location['map_provider'] ?? '') === 'google')>Google Maps</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label">Google Maps API Key</label>
+                <input name="google_maps_api_key" type="password" class="input-field" placeholder="{{ ($hasSecure['google_maps_api_key'] ?? false) ? '•••••••• (saved — leave blank to keep)' : 'Required for Google Maps provider' }}" autocomplete="new-password">
+            </div>
+            <div>
+                <label class="form-label">Default Latitude</label>
+                <input name="map_default_lat" value="{{ $location['map_default_lat'] ?? '23.8103' }}" class="input-field" placeholder="23.8103">
+            </div>
+            <div>
+                <label class="form-label">Default Longitude</label>
+                <input name="map_default_lng" value="{{ $location['map_default_lng'] ?? '90.4125' }}" class="input-field" placeholder="90.4125">
+            </div>
+            <div>
+                <label class="form-label">Default Zoom</label>
+                <input name="map_default_zoom" type="number" min="1" max="20" value="{{ $location['map_default_zoom'] ?? '12' }}" class="input-field">
+            </div>
+            <div>
+                <label class="form-label">Country Code</label>
+                <input name="map_country_code" value="{{ $location['map_country_code'] ?? 'bd' }}" class="input-field" placeholder="bd">
+            </div>
+        </div>
+        <p class="text-xs text-gray-500 mt-2">Default center: Dhaka, Bangladesh. Adjust if your store serves a different region.</p>
+
+    @elseif($activeTab==='commission')
         <label class="form-label">Default merchant commission rate (%)</label>
         <input name="default_commission_rate" type="number" step="0.01" min="0" max="100" value="{{ $commission['default_commission_rate'] ?? 10 }}" class="input-field w-40">
     @endif
@@ -292,13 +383,5 @@
 </form>
 @endif
 
-<div class="mt-8 bg-white rounded-xl ring-1 ring-gray-200 p-6 max-w-lg">
-    <h2 class="font-semibold mb-2">Two-Factor Authentication</h2>
-    <p class="text-sm text-gray-600 mb-3">@if(auth()->user()->google2fa_enabled) 2FA is enabled. @else Protect your admin account with Google Authenticator. @endif</p>
-    @if(auth()->user()->google2fa_enabled)
-        <form action="{{ route('admin.2fa.disable') }}" method="POST">@csrf<button class="btn-outline text-sm text-red-600">Disable 2FA</button></form>
-    @else
-        <a href="{{ route('admin.2fa.setup') }}" class="btn-primary inline-block text-sm">Set up 2FA</a>
-    @endif
 </div>
 @endsection

@@ -21,6 +21,7 @@ class OrderService
 {
     public function __construct(
         private readonly CartService $cartService,
+        private readonly UserInterestService $userInterestService,
     ) {}
 
     public function placeOrder(User $user, array $data): Collection
@@ -43,7 +44,7 @@ class OrderService
         $grouped = $cart->items->groupBy(fn (CartItem $item) => $item->product->shop_id);
         $totalShipping = $totals['shipping'];
 
-        return DB::transaction(function () use (
+        $orders = DB::transaction(function () use (
             $user, $address, $paymentMethod, $paymentReference, $notes,
             $cart, $grouped, $totals, $shippingMethod, $totalShipping
         ) {
@@ -116,6 +117,17 @@ class OrderService
 
             return $orders;
         });
+
+        foreach ($orders as $order) {
+            $order->load(['items.product']);
+            foreach ($order->items as $item) {
+                if ($item->product) {
+                    $this->userInterestService->trackPurchase($item->product, $user->id);
+                }
+            }
+        }
+
+        return $orders;
     }
 
     /** @deprecated Use placeOrder() */
@@ -260,6 +272,8 @@ class OrderService
             'district' => $new['district'],
             'thana' => $new['thana'] ?? null,
             'postal_code' => $new['postal_code'] ?? null,
+            'latitude' => $new['latitude'] ?? null,
+            'longitude' => $new['longitude'] ?? null,
             'is_default' => $isDefault,
         ]);
     }

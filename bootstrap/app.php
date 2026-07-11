@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\MerchantMiddleware;
 use App\Http\Middleware\RedirectIfAuthenticated;
 use App\Http\Middleware\RoleMiddleware;
+use App\Http\Middleware\SetLocale;
 use App\Http\Middleware\VerifiedMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -40,6 +41,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'merchant' => MerchantMiddleware::class,
             'admin.2fa' => AdminTwoFactorMiddleware::class,
         ]);
+
+        $middleware->web(append: [
+            SetLocale::class,
+        ]);
+
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

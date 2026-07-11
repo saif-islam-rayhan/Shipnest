@@ -2,21 +2,23 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Concerns\HandlesChatAgentSessions;
 use App\Http\Controllers\Controller;
 use App\Models\ChatMessage;
-use App\Models\ChatSession;
 use App\Models\Product;
 use App\Services\CartService;
-use App\Services\Market\AgentResponseBuilder;
+use App\Services\Market\AdminProductCreateAgent;
 use App\Services\Market\DemandChatAgent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
+use Illuminate\Http\UploadedFile;
 use Illuminate\View\View;
 
 class ChatAgentController extends Controller
 {
+    use HandlesChatAgentSessions;
+
     public function index(Request $request): View
     {
         $session = $this->resolveSession($request);
@@ -25,14 +27,36 @@ class ChatAgentController extends Controller
         return view('admin.agent.index', [
             'session' => $session,
             'messages' => $messages,
-            'defaultFollowUps' => AgentResponseBuilder::defaultFollowUps(),
+            'defaultFollowUps' => AdminProductCreateAgent::exampleFollowUps(),
         ]);
+    }
+
+    public function bootstrap(Request $request): JsonResponse
+    {
+        $session = $this->resolveSession($request);
+        $messages = $session->messages()->orderBy('id')->get();
+        $formatted = [];
+
+        foreach ($messages as $message) {
+            if ($message->role === 'user') {
+                $formatted[] = ['role' => 'user', 'content' => $message->content];
+
+                continue;
+            }
+
+            $formatted[] = array_merge($this->formatMessagePayload($message), ['role' => 'assistant']);
+        }
+
+        return response()->json(['messages' => $formatted]);
     }
 
     public function send(Request $request, DemandChatAgent $agent): JsonResponse|RedirectResponse
     {
         $request->validate([
-            'message' => 'required|string|max:2000',
+            'message' => 'nullable|string|max:2000',
+            'product_id' => 'nullable|integer|exists:products,id',
+            'images' => 'nullable|array|max:5',
+            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:5120',
             'selected_product' => 'nullable|array',
             'selected_product.id' => 'nullable|integer',
             'selected_product.product_id' => 'nullable|integer',
@@ -42,22 +66,51 @@ class ChatAgentController extends Controller
             'context_products.*.product_id' => 'nullable|integer',
             'context_products.*.name' => 'nullable|string|max:500',
         ]);
+
+        $message = trim((string) $request->input('message', ''));
+        /** @var array<int, UploadedFile> $uploadedImages */
+        $uploadedImages = array_values(array_filter(
+            $request->file('images', []),
+            fn ($file) => $file instanceof UploadedFile,
+        ));
+
+        if ($message === '' && $uploadedImages === []) {
+            return response()->json(['message' => 'Message or image is required.'], 422);
+        }
+
         $session = $this->resolveSession($request);
+
+        $userContent = $message !== ''
+            ? $message
+            : '📷 '.count($uploadedImages).' image(s) uploaded';
 
         ChatMessage::create([
             'chat_session_id' => $session->id,
             'role' => 'user',
-            'content' => $request->message,
+            'content' => $userContent,
         ]);
 
         $selectedProduct = $request->input('selected_product');
         $contextProducts = $request->input('context_products', []);
-        $response = $agent->handle(
-            $session,
-            $request->message,
-            is_array($selectedProduct) ? $selectedProduct : null,
-            is_array($contextProducts) ? $contextProducts : [],
-        );
+
+        try {
+            $response = $agent->handle(
+                $session,
+                $message,
+                is_array($selectedProduct) ? $selectedProduct : null,
+                is_array($contextProducts) ? $contextProducts : [],
+                adminPanel: true,
+                uploadedImages: $uploadedImages,
+                productId: $request->integer('product_id') ?: null,
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            $response = [
+                'content' => '❌ কিছু একটা ভুল হয়েছে: '.$e->getMessage(),
+                'meta' => ['type' => 'error'],
+            ];
+        }
 
         $assistant = ChatMessage::create([
             'chat_session_id' => $session->id,
@@ -90,6 +143,8 @@ class ChatAgentController extends Controller
             'year_to' => null,
             'top_n' => 5,
             'pending_cart_product_id' => null,
+            'draft_product' => null,
+            'last_product_id' => null,
         ]);
         $session->messages()->delete();
         $request->session()->forget('admin_chat_session_key');
@@ -126,61 +181,5 @@ class ChatAgentController extends Controller
             ],
             'cart_url' => route('cart.index'),
         ]);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function formatMessagePayload(ChatMessage $message): array
-    {
-        $meta = $message->meta ?? [];
-
-        return [
-            'id' => $message->id,
-            'role' => $message->role,
-            'content' => $message->content,
-            'content_html' => Str::markdown($message->content),
-            'meta' => $meta,
-            'summary' => $meta['summary'] ?? null,
-            'products' => $meta['products'] ?? [],
-            'products_all' => $meta['products_all'] ?? [],
-            'products_preview_count' => $meta['products_preview_count'] ?? 4,
-            'trending_products' => $meta['trending_products'] ?? [],
-            'trending_products_all' => $meta['trending_products_all'] ?? [],
-            'trending_total_count' => $meta['trending_total_count'] ?? null,
-            'trending_preview_count' => $meta['trending_preview_count'] ?? 4,
-            'follow_ups' => $meta['follow_ups'] ?? [],
-            'thought_process' => $meta['thought_process'] ?? [],
-            'sources' => $meta['sources'] ?? [],
-            'type' => $meta['type'] ?? 'text',
-            'total_count' => $meta['total_count'] ?? null,
-            'query' => $meta['query'] ?? null,
-            'cart_url' => $meta['cart_url'] ?? null,
-            'checkout_url' => $meta['checkout_url'] ?? null,
-        ];
-    }
-
-    private function resolveSession(Request $request): ChatSession
-    {
-        $key = $request->session()->get('admin_chat_session_key');
-        if ($key) {
-            $session = ChatSession::where('session_key', $key)
-                ->where('user_id', auth()->id())
-                ->first();
-            if ($session) {
-                return $session;
-            }
-        }
-
-        $key = Str::random(40);
-        $session = ChatSession::create([
-            'session_key' => $key,
-            'user_id' => auth()->id(),
-            'step' => 'idle',
-            'top_n' => 5,
-        ]);
-        $request->session()->put('admin_chat_session_key', $key);
-
-        return $session;
     }
 }

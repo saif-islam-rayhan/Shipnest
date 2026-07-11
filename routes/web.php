@@ -7,18 +7,23 @@ use App\Http\Controllers\Account\ProfileController as AccountProfileController;
 use App\Http\Controllers\Account\ReturnController as AccountReturnController;
 use App\Http\Controllers\Account\ReviewController as AccountReviewController;
 use App\Http\Controllers\Account\WishlistController as AccountWishlistController;
+use App\Http\Controllers\Admin\AiDesignController as AdminAiDesignController;
 use App\Http\Controllers\Admin\BrandController as AdminBrandController;
 use App\Http\Controllers\Admin\CategoryController as AdminCategoryController;
+use App\Http\Controllers\Admin\ChatAgentController as AdminChatAgentController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\FinanceController as AdminFinanceController;
 use App\Http\Controllers\Admin\MerchantController as AdminMerchantController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
+use App\Http\Controllers\Admin\PageController as AdminPageController;
 use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Admin\ProductController as AdminProductController;
 use App\Http\Controllers\Admin\PromotionController as AdminPromotionController;
 use App\Http\Controllers\Admin\SettingController as AdminSettingController;
 use App\Http\Controllers\Admin\TwoFactorController as AdminTwoFactorController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
+use App\Http\Controllers\LocaleController;
+use App\Http\Controllers\Merchant\AiDesignController as MerchantAiDesignController;
 use App\Http\Controllers\Merchant\AnalyticsController as MerchantAnalyticsController;
 use App\Http\Controllers\Merchant\DashboardController as MerchantDashboardController;
 use App\Http\Controllers\Merchant\OrderController as MerchantOrderController;
@@ -27,16 +32,27 @@ use App\Http\Controllers\Merchant\ReturnController as MerchantReturnController;
 use App\Http\Controllers\Merchant\SettingsController as MerchantSettingsController;
 use App\Http\Controllers\Merchant\WalletController as MerchantWalletController;
 use App\Http\Controllers\Storefront\CartController;
+use App\Http\Controllers\Storefront\ChatAgentController as StorefrontChatAgentController;
 use App\Http\Controllers\Storefront\CheckoutController;
 use App\Http\Controllers\Storefront\HomeController;
 use App\Http\Controllers\Storefront\OrderController;
 use App\Http\Controllers\Storefront\PaymentWebhookController;
 use App\Http\Controllers\Storefront\ProductController;
+use App\Http\Controllers\Storefront\ProductQuestionController;
 use App\Http\Controllers\Storefront\ProductReviewController;
 use App\Models\Order;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
+
+Route::prefix('agent')->name('agent.')->middleware('throttle:60,1')->group(function () {
+    Route::get('/bootstrap', [StorefrontChatAgentController::class, 'bootstrap'])->name('bootstrap');
+    Route::post('/send', [StorefrontChatAgentController::class, 'send'])->name('send');
+    Route::post('/reset', [StorefrontChatAgentController::class, 'reset'])->name('reset');
+    Route::post('/cart', [StorefrontChatAgentController::class, 'addToCart'])->name('cart');
+});
+
+Route::get('/locale/{locale}', [LocaleController::class, 'switch'])->name('locale.switch');
 Route::post('/newsletter', [HomeController::class, 'subscribe'])->name('newsletter.subscribe');
 
 Route::get('/products', [ProductController::class, 'index'])->name('products.index');
@@ -48,6 +64,15 @@ Route::get('/products/{slug}', [ProductController::class, 'show'])->name('produc
 Route::post('/products/{product}/reviews', [ProductReviewController::class, 'store'])
     ->middleware(['auth', 'active'])
     ->name('products.reviews.store');
+Route::post('/products/{product}/generate-review', [ProductReviewController::class, 'generate'])
+    ->middleware(['auth', 'active'])
+    ->name('products.reviews.generate');
+Route::post('/products/{product}/questions', [ProductQuestionController::class, 'store'])
+    ->middleware(['auth', 'active'])
+    ->name('products.questions.store');
+Route::post('/products/{product}/questions/{question}/answer', [ProductQuestionController::class, 'answer'])
+    ->middleware(['auth', 'active'])
+    ->name('products.questions.answer');
 
 Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
 Route::post('/cart', [CartController::class, 'store'])->name('cart.store');
@@ -107,6 +132,7 @@ Route::prefix('merchant')->name('merchant.')->middleware(['auth', 'active', 'rol
 
         Route::get('/products', [MerchantProductController::class, 'index'])->name('products.index');
         Route::get('/products/create', [MerchantProductController::class, 'create'])->name('products.create');
+        Route::post('/products/generate-description', [MerchantProductController::class, 'generateDescription'])->name('products.generate-description');
         Route::post('/products', [MerchantProductController::class, 'store'])->name('products.store');
         Route::get('/products/{product}/edit', [MerchantProductController::class, 'edit'])->name('products.edit');
         Route::put('/products/{product}', [MerchantProductController::class, 'update'])->name('products.update');
@@ -114,6 +140,11 @@ Route::prefix('merchant')->name('merchant.')->middleware(['auth', 'active', 'rol
         Route::patch('/products/{product}/toggle', [MerchantProductController::class, 'toggleStatus'])->name('products.toggle');
         Route::post('/products/{product}/duplicate', [MerchantProductController::class, 'duplicate'])->name('products.duplicate');
         Route::post('/products/bulk', [MerchantProductController::class, 'bulk'])->name('products.bulk');
+
+        Route::get('/ai-design', [MerchantAiDesignController::class, 'index'])->name('ai-design.index');
+        Route::post('/ai-design/generate', [MerchantAiDesignController::class, 'generate'])
+            ->middleware('throttle:10,1')
+            ->name('ai-design.generate');
 
         Route::get('/orders', [MerchantOrderController::class, 'index'])->name('orders.index');
         Route::get('/orders/{order}', [MerchantOrderController::class, 'show'])->name('orders.show');
@@ -161,6 +192,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'active', 'role:supe
 
     Route::get('/products', [AdminProductController::class, 'index'])->name('products.index');
     Route::get('/products/create', [AdminProductController::class, 'create'])->name('products.create');
+    Route::post('/products/generate-description', [AdminProductController::class, 'generateDescription'])->name('products.generate-description');
     Route::post('/products', [AdminProductController::class, 'store'])->name('products.store');
     Route::get('/products/{product}/edit', [AdminProductController::class, 'edit'])->name('products.edit');
     Route::put('/products/{product}', [AdminProductController::class, 'update'])->name('products.update');
@@ -197,6 +229,17 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'active', 'role:supe
     Route::post('/promotions/coupons', [AdminPromotionController::class, 'storeCoupon'])->name('promotions.coupons.store');
     Route::delete('/promotions/coupons/{coupon}', [AdminPromotionController::class, 'destroyCoupon'])->name('promotions.coupons.destroy');
 
+    Route::get('/ai-design', [AdminAiDesignController::class, 'index'])->name('ai-design.index');
+    Route::post('/ai-design/generate', [AdminAiDesignController::class, 'generate'])
+        ->middleware('throttle:10,1')
+        ->name('ai-design.generate');
+
+    Route::get('/agent', [AdminChatAgentController::class, 'index'])->name('agent.index');
+    Route::get('/agent/bootstrap', [AdminChatAgentController::class, 'bootstrap'])->name('agent.bootstrap');
+    Route::post('/agent', [AdminChatAgentController::class, 'send'])->name('agent.send');
+    Route::post('/agent/cart', [AdminChatAgentController::class, 'addToCart'])->name('agent.cart');
+    Route::post('/agent/reset', [AdminChatAgentController::class, 'reset'])->name('agent.reset');
+
     Route::get('/finance', [AdminFinanceController::class, 'index'])->name('finance.index');
 
     Route::get('/payments', [AdminPaymentController::class, 'index'])->name('payments.index');
@@ -205,6 +248,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'active', 'role:supe
 
     Route::get('/settings', [AdminSettingController::class, 'edit'])->name('settings.edit');
     Route::put('/settings', [AdminSettingController::class, 'update'])->name('settings.update');
+    Route::post('/settings/sslcommerz/test', [AdminSettingController::class, 'testSslCommerz'])->name('settings.sslcommerz.test');
+    Route::post('/settings/agent/llm-provider', [AdminSettingController::class, 'updateLlmProvider'])->name('settings.llm-provider.update');
+    Route::post('/settings/agent/llm-provider/test', [AdminSettingController::class, 'testLlmProvider'])->name('settings.llm-provider.test');
     Route::post('/settings/maintenance', [AdminSettingController::class, 'toggleMaintenance'])->name('settings.maintenance');
 
     Route::get('/pages', [AdminPageController::class, 'index'])->name('pages.index');

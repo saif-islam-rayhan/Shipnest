@@ -16,10 +16,10 @@
         "laravel/socialite": "^5.28",
         "laravel/tinker": "^2.9",
         "meilisearch/meilisearch-php": "^1.16",
-        "pusher/pusher-php-server": "^7.2",
         "pragmarx/google2fa": "^8.0",
-        "stripe/stripe-php": "^16.0",
+        "pusher/pusher-php-server": "^7.2",
         "spatie/laravel-permission": "^6.25",
+        "stripe/stripe-php": "^16.0",
         "twilio/sdk": "^8.11",
         "yajra/laravel-datatables-oracle": "^11.1"
     },

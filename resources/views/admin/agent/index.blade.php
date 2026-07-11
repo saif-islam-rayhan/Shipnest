@@ -19,32 +19,72 @@
         'type' => $m->meta['type'] ?? 'text',
         'total_count' => $m->meta['total_count'] ?? null,
         'query' => $m->meta['query'] ?? null,
+        'draft_product' => $m->meta['draft_product'] ?? null,
+        'product' => $m->meta['product'] ?? null,
     ])->values();
 @endphp
+@php
+    use App\Support\AgentBranding;
+
+    $agentName = AgentBranding::name();
+    $agentLogoUrl = AgentBranding::logoUrl();
+@endphp
 @extends('layouts.admin')
-@section('title', 'AI Mode')
-@section('page-title', 'AI Mode')
+@section('title', $agentName)
+@section('page-title', $agentName)
 
 @push('styles')
 <style>
-    .agent-shell { height: calc(100vh - 7rem); min-height: 620px; }
-    .agent-feed { scroll-behavior: smooth; }
-
-    /* ── Alibaba AI Mode layout ── */
-    .ai-turn { margin-bottom: 2.5rem; }
-    .ai-turn-grid {
-        display: grid;
-        grid-template-columns: 88px 1fr;
-        gap: 1.5rem;
-        align-items: start;
+    /* ── Full-height layout (input always visible) ── */
+    body:has(.agent-shell) .flex.min-h-screen > div:last-child {
+        height: 100dvh;
+        min-height: 0;
+        overflow: hidden;
     }
-    @media (min-width: 1024px) { .ai-turn-grid { grid-template-columns: 120px 1fr; gap: 2rem; } }
-    .ai-query-side {
-        font-size: 0.875rem;
-        color: #6b7280;
-        padding-top: 0.25rem;
+    body:has(.agent-shell) main {
+        flex: 1 1 0;
+        min-height: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    .agent-shell { flex: 1; min-height: 0; height: auto; }
+    .agent-feed { scroll-behavior: smooth; min-height: 0; }
+
+    /* ── Chat bubble layout ── */
+    .chat-turn { margin-bottom: 1.25rem; display: flex; flex-direction: column; gap: 0.625rem; }
+    .chat-row { display: flex; width: 100%; }
+    .chat-row.user { justify-content: flex-end; }
+    .chat-row.agent { justify-content: flex-start; }
+    .chat-bubble {
+        max-width: 78%;
+        padding: 10px 14px;
+        border-radius: 16px;
+        font-size: 14px;
+        line-height: 1.5;
         word-break: break-word;
-        line-height: 1.4;
+    }
+    .chat-bubble.user {
+        background: #F57C00;
+        color: #fff;
+        border-bottom-right-radius: 4px;
+    }
+    .chat-bubble.agent {
+        background: #f3f4f6;
+        color: #111827;
+        border-bottom-left-radius: 4px;
+    }
+    .chat-bubble.agent.wide {
+        max-width: 100%;
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        padding: 14px 16px;
+    }
+    .chat-bubble.agent.typing {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #6b7280;
     }
     .ai-heading {
         font-size: 1.125rem;
@@ -248,15 +288,91 @@
     .agent-input-outer { max-width: 48rem; margin: 0 auto; }
     .agent-input-wrap {
         background: #fff;
-        border: 1px solid #e5e7eb;
+        border: 1px solid #fdba74;
         border-radius: 20px;
         padding: 0;
         display: flex;
         flex-direction: column;
-        box-shadow: 0 1px 4px rgba(0,0,0,.06);
+        box-shadow: 0 0 0 3px rgba(245,124,0,.08), 0 1px 4px rgba(0,0,0,.04);
         overflow: hidden;
         transition: border-color .15s, box-shadow .15s;
     }
+    .agent-mode-chips {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding: 10px 2px 0;
+        scrollbar-width: thin;
+        -webkit-overflow-scrolling: touch;
+    }
+    .agent-mode-chip {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        border: 1px solid #e5e7eb;
+        background: #fff;
+        color: #374151;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.2;
+        padding: 7px 12px;
+        border-radius: 999px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: border-color .15s, background .15s, color .15s;
+    }
+    .agent-mode-chip:hover { border-color: #d1d5db; background: #f9fafb; }
+    .agent-mode-chip.is-active {
+        border-color: #F57C00;
+        background: #fff7ed;
+        color: #c2410c;
+    }
+    .agent-mode-chip .mode-spark { color: #eab308; font-size: 11px; }
+    .studio-design-img {
+        display: block;
+        width: 100%;
+        max-width: 420px;
+        max-height: 420px;
+        object-fit: cover;
+        border-radius: 12px;
+        margin-top: 10px;
+        border: 1px solid #e5e7eb;
+        background: #fff;
+    }
+    .studio-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .studio-actions a {
+        display: inline-flex;
+        align-items: center;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 6px 12px;
+        border-radius: 8px;
+        text-decoration: none;
+    }
+    .studio-actions .btn-primary { background: #F57C00; color: #fff; }
+    .studio-actions .btn-ghost { background: #fff; color: #374151; border: 1px solid #e5e7eb; }
+    .studio-product-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 8px;
+        margin-top: 12px;
+    }
+    .studio-product-card {
+        display: flex;
+        gap: 8px;
+        padding: 8px;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        background: #fff;
+    }
+    .studio-product-card img {
+        width: 48px; height: 48px; border-radius: 6px; object-fit: cover; background: #f3f4f6; flex-shrink: 0;
+    }
+    .studio-product-card .sp-name { font-size: 12px; font-weight: 600; color: #111827; line-height: 1.3; }
+    .studio-product-card .sp-price { font-size: 11px; color: #F57C00; margin-top: 2px; }
+    .studio-product-card .sp-meta { font-size: 11px; color: #6b7280; margin-top: 2px; }
+    .studio-product-card a { font-size: 11px; color: #1A237E; font-weight: 500; margin-top: 4px; display: inline-block; }
     .agent-input-wrap.has-selection {
         border-color: #fca5a5;
         box-shadow: 0 0 0 1px rgba(239,68,68,.15), 0 2px 8px rgba(0,0,0,.06);
@@ -363,11 +479,84 @@
     }
     .agent-send-btn:hover { background: #F57C00; }
     .agent-send-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .agent-mic-btn {
+        width: 40px; height: 40px;
+        border-radius: 10px;
+        color: #9ca3af;
+        border: none;
+        background: none;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+        cursor: pointer;
+        transition: color .15s, background .15s;
+    }
+    .agent-mic-btn:hover { color: #F57C00; background: #fff7ed; }
+    .agent-mic-btn.is-listening {
+        color: #fff; background: #ef4444;
+        animation: agent-mic-pulse 1.2s ease-in-out infinite;
+    }
+    .agent-mic-btn:disabled { opacity: .4; cursor: not-allowed; }
+    @keyframes agent-mic-pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, .45); }
+        50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+    }
     .attach-btn {
         color: #9ca3af;
         padding: 8px;
         flex-shrink: 0;
-        cursor: default;
+        cursor: pointer;
+        border: none;
+        background: none;
+        border-radius: 8px;
+        transition: color .15s, background .15s;
+    }
+    .attach-btn:hover { color: #F57C00; background: #fff7ed; }
+    .image-preview-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 8px 12px 0;
+    }
+    .image-preview-chip {
+        position: relative;
+        width: 56px;
+        height: 56px;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid #e5e7eb;
+    }
+    .image-preview-chip img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .image-preview-chip button {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        width: 18px;
+        height: 18px;
+        border: none;
+        border-radius: 999px;
+        background: rgba(0,0,0,.55);
+        color: #fff;
+        font-size: 12px;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .user-chat-images {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 6px;
+    }
+    .user-chat-images img {
+        width: 72px;
+        height: 72px;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,.35);
     }
 
     /* ── Typing indicator ── */
@@ -553,16 +742,22 @@
 @section('content')
 <div class="agent-shell flex flex-col" id="agent-app"
      data-send-url="{{ route('admin.agent.send') }}"
+     data-ai-design-url="{{ route('admin.ai-design.generate') }}"
+     data-create-product-url="{{ route('admin.products.create') }}"
      data-cart-url="{{ route('admin.agent.cart') }}"
      data-cart-page-url="{{ route('cart.index') }}"
      data-checkout-page-url="{{ route('checkout.index') }}"
      data-reset-url="{{ route('admin.agent.reset') }}"
-     data-csrf="{{ csrf_token() }}">
+     data-csrf="{{ csrf_token() }}"
+     data-admin-mode="1">
 
     <div class="flex items-center justify-between mb-3 shrink-0 px-1">
-        <div class="flex items-center gap-3">
-            <span class="text-lg font-bold text-gray-900">AI Mode</span>
-            <span class="text-xs text-gray-400 hidden sm:inline">Products · Market · ShipNest catalog</span>
+        <div class="flex items-center gap-3 min-w-0">
+            @if($agentLogoUrl)
+                <img src="{{ $agentLogoUrl }}" alt="" class="h-9 w-9 rounded-full object-cover ring-1 ring-gray-200 shrink-0">
+            @endif
+            <span class="text-lg font-bold text-gray-900 truncate">{{ $agentName }}</span>
+            <span class="text-xs text-gray-400 hidden sm:inline">AI Mode · Design · Search · Trends</span>
         </div>
         <button type="button" id="agent-reset-btn"
             class="text-sm px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
@@ -572,33 +767,79 @@
 
     <div class="flex-1 flex flex-col overflow-hidden rounded-2xl bg-white border border-gray-200">
         <div id="agent-feed" class="agent-feed flex-1 overflow-y-auto px-4 lg:px-10 py-8">
+            <template id="agent-welcome-template">
+                <div id="agent-welcome" class="max-w-xl mx-auto text-center py-16">
+                    @if($agentLogoUrl)
+                        <img src="{{ $agentLogoUrl }}" alt="{{ $agentName }}" class="h-14 w-14 rounded-full object-cover mx-auto mb-4 ring-1 ring-gray-200">
+                    @endif
+                    <h2 class="text-xl font-bold text-gray-900 mb-2">{{ $agentName }}</h2>
+                    <p class="text-sm text-gray-500 mb-8">Design, search, bestsellers, market potential & trends — admin panel</p>
+                    <div class="flex flex-wrap justify-center gap-2" id="welcome-chips">
+                        @foreach([
+                            ['mode' => 'design', 'label' => 'Design with AI', 'prompt' => 'Design a ceramic Labubu mug with soft pastel colors'],
+                            ['mode' => 'search', 'label' => 'Product search', 'prompt' => 'smart watch'],
+                            ['mode' => 'bestsellers', 'label' => 'Analyze bestsellers', 'prompt' => ''],
+                            ['mode' => 'market', 'label' => 'Evaluate market potential', 'prompt' => 'wireless earbuds for students'],
+                            ['mode' => 'trends', 'label' => 'Discover trends', 'prompt' => ''],
+                        ] as $chip)
+                            <button type="button" class="follow-chip mode-welcome-chip text-sm px-4 py-2 rounded-full border border-gray-200 bg-white text-gray-700 hover:border-orange-300 hover:bg-orange-50 transition"
+                                data-mode="{{ $chip['mode'] }}" data-prompt="{{ $chip['prompt'] }}">{{ $chip['label'] }}</button>
+                        @endforeach
+                    </div>
+                </div>
+            </template>
             @if($initialMessages->isEmpty())
                 <div id="agent-welcome" class="max-w-xl mx-auto text-center py-16">
-                    <h2 class="text-xl font-bold text-gray-900 mb-2">What are you looking for?</h2>
-                    <p class="text-sm text-gray-500 mb-8">Ask anything — product search, market trends, or general questions</p>
+                    @if($agentLogoUrl)
+                        <img src="{{ $agentLogoUrl }}" alt="{{ $agentName }}" class="h-14 w-14 rounded-full object-cover mx-auto mb-4 ring-1 ring-gray-200">
+                    @endif
+                    <h2 class="text-xl font-bold text-gray-900 mb-2">{{ $agentName }}</h2>
+                    <p class="text-sm text-gray-500 mb-8">Design, search, bestsellers, market potential & trends — admin panel</p>
                     <div class="flex flex-wrap justify-center gap-2" id="welcome-chips">
-                        @foreach(['What is the capital of France?', 'trending product ki?', 'watch', 'earbuds'] as $chip)
-                            <button type="button" class="follow-chip text-sm px-4 py-2 rounded-full border border-gray-200 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50 transition"
-                                data-query="{{ $chip }}">{{ $chip }}</button>
+                        @foreach([
+                            ['mode' => 'design', 'label' => 'Design with AI', 'prompt' => 'Design a ceramic Labubu mug with soft pastel colors'],
+                            ['mode' => 'search', 'label' => 'Product search', 'prompt' => 'smart watch'],
+                            ['mode' => 'bestsellers', 'label' => 'Analyze bestsellers', 'prompt' => ''],
+                            ['mode' => 'market', 'label' => 'Evaluate market potential', 'prompt' => 'wireless earbuds for students'],
+                            ['mode' => 'trends', 'label' => 'Discover trends', 'prompt' => ''],
+                        ] as $chip)
+                            <button type="button" class="follow-chip mode-welcome-chip text-sm px-4 py-2 rounded-full border border-gray-200 bg-white text-gray-700 hover:border-orange-300 hover:bg-orange-50 transition"
+                                data-mode="{{ $chip['mode'] }}" data-prompt="{{ $chip['prompt'] }}">{{ $chip['label'] }}</button>
                         @endforeach
                     </div>
                 </div>
             @endif
         </div>
 
-        <div class="shrink-0 px-4 lg:px-10 pb-5 pt-2 border-t border-gray-100">
+        <div class="agent-input-bar shrink-0 px-4 lg:px-10 pb-5 pt-2 border-t border-gray-100 bg-white">
             <div class="agent-input-outer">
                 <div class="agent-input-wrap" id="agent-input-wrap">
                     <div id="input-product-chip" class="input-product-chip hidden"></div>
+                    <div id="image-preview-row" class="image-preview-row hidden"></div>
                     <div class="input-row">
-                        <span class="attach-btn" title="Attach">
+                        <button type="button" class="attach-btn" id="agent-attach-btn" title="Upload product image">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
-                        </span>
-                        <textarea id="agent-input" rows="1" placeholder="ask follow-up..."></textarea>
+                        </button>
+                        <input type="file" id="agent-image-input" accept="image/jpeg,image/png,image/jpg,image/webp" multiple hidden>
+                        <textarea id="agent-input" rows="1" placeholder="Describe your needs..."></textarea>
+                        <button type="button" id="agent-mic-btn" class="agent-mic-btn" title="Voice input" aria-label="Voice input">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8"/>
+                            </svg>
+                        </button>
                         <button type="button" id="agent-send-btn" class="agent-send-btn" title="Send">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
                         </button>
                     </div>
+                </div>
+                <div class="agent-mode-chips" id="agent-mode-chips" role="tablist" aria-label="AI categories">
+                    <button type="button" class="agent-mode-chip is-active" data-mode="design" role="tab" aria-selected="true"><span class="mode-spark">✦</span> Design with AI</button>
+                    <button type="button" class="agent-mode-chip" data-mode="search" role="tab">Product search</button>
+                    <button type="button" class="agent-mode-chip" data-mode="bestsellers" role="tab">Analyze bestsellers</button>
+                    <button type="button" class="agent-mode-chip" data-mode="market" role="tab">Evaluate market potential</button>
+                    <button type="button" class="agent-mode-chip" data-mode="trends" role="tab">Discover trends</button>
+                    <button type="button" class="agent-mode-chip" data-mode="chat" role="tab">Chat / create</button>
                 </div>
             </div>
             <form id="agent-form" class="hidden"></form>
@@ -667,23 +908,121 @@
     const input = document.getElementById('agent-input');
     const sendBtn = document.getElementById('agent-send-btn');
     const resetBtn = document.getElementById('agent-reset-btn');
-    const welcome = document.getElementById('agent-welcome');
+    let welcome = document.getElementById('agent-welcome');
+    const welcomeTemplateEl = document.getElementById('agent-welcome-template');
+    const welcomeTemplate = welcome?.outerHTML || welcomeTemplateEl?.innerHTML || '';
     const inputWrap = document.getElementById('agent-input-wrap');
     const inputChip = document.getElementById('input-product-chip');
+    const imageInput = document.getElementById('agent-image-input');
+    const attachBtn = document.getElementById('agent-attach-btn');
+    const imagePreviewRow = document.getElementById('image-preview-row');
     const sendUrl = app.dataset.sendUrl;
+    const aiDesignUrl = app.dataset.aiDesignUrl || '';
+    const createProductUrl = app.dataset.createProductUrl || '';
     const agentCartUrl = app.dataset.cartUrl;
     const cartPageUrl = app.dataset.cartPageUrl;
     const checkoutPageUrl = app.dataset.checkoutPageUrl;
     const resetUrl = app.dataset.resetUrl;
     const csrf = app.dataset.csrf;
+    const adminMode = app.dataset.adminMode === '1';
     let turnId = 0;
     let selectedProduct = null;
     let lastPlatformProducts = [];
+    let pendingImages = [];
+    let lastCreatedProductId = null;
+    let studioMode = 'design';
+
+    const STUDIO_MODES = new Set(['design', 'search', 'bestsellers', 'market', 'trends']);
+    const MODE_PLACEHOLDERS = {
+        design: 'Describe your needs… e.g. Design Labubu mug',
+        search: 'Search products… e.g. smart watch under 2000',
+        bestsellers: 'Optional filter… or just send to see bestsellers',
+        market: 'Evaluate a niche… e.g. wireless earbuds for students',
+        trends: 'Discover trends… e.g. fashion june 2026',
+        chat: 'ask follow-up, create product, or tap mic...',
+    };
+    const MODE_TYPING = {
+        design: 'Designing your product…',
+        search: 'Searching ShipNest catalog…',
+        bestsellers: 'Analyzing bestsellers…',
+        market: 'Evaluating market potential…',
+        trends: 'Discovering trends…',
+    };
+
+    function setStudioMode(mode) {
+        studioMode = mode || 'design';
+        document.querySelectorAll('#agent-mode-chips .agent-mode-chip').forEach((btn) => {
+            const active = btn.dataset.mode === studioMode;
+            btn.classList.toggle('is-active', active);
+            btn.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        if (input && !document.getElementById('agent-mic-btn')?.classList.contains('is-listening')) {
+            input.placeholder = MODE_PLACEHOLDERS[studioMode] || MODE_PLACEHOLDERS.chat;
+        }
+    }
+
+    document.getElementById('agent-mode-chips')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('.agent-mode-chip');
+        if (!btn) return;
+        setStudioMode(btn.dataset.mode);
+        input?.focus();
+    });
+    setStudioMode('design');
+
+    function renderImagePreviews() {
+        if (!imagePreviewRow) return;
+        if (!pendingImages.length) {
+            imagePreviewRow.classList.add('hidden');
+            imagePreviewRow.innerHTML = '';
+            return;
+        }
+        imagePreviewRow.classList.remove('hidden');
+        imagePreviewRow.innerHTML = pendingImages.map((file, idx) => `
+            <div class="image-preview-chip">
+                <img src="${URL.createObjectURL(file)}" alt="${esc(file.name)}">
+                <button type="button" data-remove-image="${idx}" title="Remove">×</button>
+            </div>
+        `).join('');
+        imagePreviewRow.querySelectorAll('[data-remove-image]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                pendingImages.splice(Number(btn.dataset.removeImage), 1);
+                renderImagePreviews();
+            });
+        });
+    }
+
+    attachBtn?.addEventListener('click', () => imageInput?.click());
+    imageInput?.addEventListener('change', () => {
+        const files = Array.from(imageInput.files || []);
+        if (!files.length) return;
+        pendingImages = pendingImages.concat(files).slice(0, 5);
+        imageInput.value = '';
+        renderImagePreviews();
+    });
 
     function esc(s) {
         const d = document.createElement('div');
         d.textContent = s ?? '';
         return d.innerHTML;
+    }
+
+    function renderUserBubbleContent(message, imageFiles) {
+        const files = imageFiles || [];
+        let html = '';
+        if (files.length) {
+            html += '<div class="user-chat-images">';
+            files.forEach((file) => {
+                html += `<img src="${URL.createObjectURL(file)}" alt="${esc(file.name)}">`;
+            });
+            html += '</div>';
+        }
+        const text = (message || '').trim();
+        if (text) {
+            html += esc(text);
+        } else if (files.length) {
+            html += `📷 ${files.length} image(s)`;
+        }
+        return html;
     }
 
     function placeholderImg(name) {
@@ -733,8 +1072,10 @@
         const imgUrl = p.image || placeholderImg(p.name);
         const price = p.price_label ? `<p class="ai-card-price">${esc(p.price_label)}</p>` : '';
         const productId = p.id || p.product_id;
-        const cartBtn = productId
+        const cartBtn = (!adminMode && productId)
             ? `<button type="button" class="ai-card-cart" data-card-cart data-product-id="${productId}">Add to cart</button>`
+            : (productId && p.admin_url)
+                ? `<a href="${esc(p.admin_url)}" class="ai-card-cart text-center no-underline" style="display:block;line-height:1.4">Edit in Admin</a>`
             : '';
         return `<div class="ai-card" data-card-idx="${idx}" data-turn="${tid}">
             <div class="ai-card-img-wrap">
@@ -764,8 +1105,9 @@
                 <p class="chip-title">${esc(title)}</p>
                 <div class="chip-actions">
                     <a href="${esc(viewUrl)}" class="chip-action" target="_blank" rel="noopener">View product →</a>
-                    ${(p.id || p.product_id) ? '<button type="button" class="chip-action" data-chip-cart>Add to cart →</button>' : ''}
-                    <button type="button" class="chip-action" data-send-inquiry>Send inquiry →</button>
+                    ${(!adminMode && (p.id || p.product_id)) ? '<button type="button" class="chip-action" data-chip-cart>Add to cart →</button>' : ''}
+                    ${adminMode && p.admin_url ? `<a href="${esc(p.admin_url)}" class="chip-action">Edit in Admin →</a>` : ''}
+                    ${!adminMode ? '<button type="button" class="chip-action" data-send-inquiry>Send inquiry →</button>' : ''}
                 </div>
             </div>
             <button type="button" class="chip-remove" data-chip-remove title="Remove">×</button>`;
@@ -983,7 +1325,25 @@
         return html;
     }
 
-    function renderTurn(query, msg) {
+    function renderAgentTextBlock(msg, className = 'ai-text-body prose prose-sm max-w-none mb-4') {
+        if (!msg.greeting && !msg.show_content) {
+            return '';
+        }
+        if (!msg.content_html && !msg.content) {
+            return '';
+        }
+
+        const html = msg.content_html || esc(msg.content).replace(/\n/g, '<br>');
+        return `<div class="${className}">${html}</div>`;
+    }
+
+    function isPlatformTrendingCatalog(msg, trendingAll) {
+        return msg.type === 'platform'
+            && !(trendingAll?.length)
+            && (msg.catalog_mode === 'trending' || msg.query === 'trending product');
+    }
+
+    function renderTurn(query, msg, userImages) {
         const tid = ++turnId;
         const q = query || msg.query || '';
         const hasProducts = msg.products?.length > 0;
@@ -997,26 +1357,46 @@
                 main += `<p class="ai-text-body text-sm text-gray-600 mb-3">${msg.summary.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</p>`;
             }
             main += renderTrendingList(msg.products);
-        } else if (hasProducts && msg.type === 'platform') {
+        } else if (msg.type === 'platform' && (hasProducts || hasTrending)) {
             const previewCount = msg.products_preview_count || PREVIEW_COUNT;
-            const searchAll = msg.products_all?.length ? msg.products_all : msg.products;
+            const searchAll = msg.products_all?.length ? msg.products_all : (msg.products || []);
             const trendingAll = msg.trending_products_all?.length ? msg.trending_products_all : (msg.trending_products || []);
             const trendingPreview = msg.trending_preview_count || PREVIEW_COUNT;
+            const isTrendingCatalog = isPlatformTrendingCatalog(msg, trendingAll);
 
-            main += `<h2 class="ai-heading">${esc(capitalize(q))}</h2>`;
-            if (msg.summary) {
+            if (msg.greeting || msg.show_content || msg.catalog_mode === 'image_search') {
+                main += renderAgentTextBlock(msg);
+            } else if (!isTrendingCatalog && (hasProducts || hasTrending)) {
+                main += `<h2 class="ai-heading">${esc(capitalize(q))}</h2>`;
+            }
+
+            if (msg.summary && (!msg.greeting || !msg.show_content) && msg.catalog_mode !== 'image_search') {
                 main += `<p class="ai-text-body text-sm text-gray-600 mb-4">${msg.summary.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</p>`;
             }
-            main += renderProductSection(
-                `Results on ShipNest (${msg.total_count || searchAll.length})`,
-                searchAll,
-                previewCount,
-                tid,
-                'search',
-            );
-            if (trendingAll.length > 0) {
+
+            if (hasProducts) {
+                const searchTitle = isTrendingCatalog
+                    ? `🔥 Trending Products (${msg.total_count || searchAll.length})`
+                    : `Results on ShipNest (${msg.total_count || searchAll.length})`;
+
                 main += renderProductSection(
-                    `Related trending on ShipNest (${msg.trending_total_count || trendingAll.length})`,
+                    searchTitle,
+                    searchAll,
+                    previewCount,
+                    tid,
+                    'search',
+                );
+            }
+
+            if (trendingAll.length > 0) {
+                const trendingTitle = hasProducts
+                    ? `Related trending on ShipNest (${msg.trending_total_count || trendingAll.length})`
+                    : (msg.catalog_mode === 'image_search'
+                        ? `Similar products (${msg.trending_total_count || trendingAll.length})`
+                        : `Related products (${msg.trending_total_count || trendingAll.length})`);
+
+                main += renderProductSection(
+                    trendingTitle,
                     trendingAll,
                     trendingPreview,
                     tid,
@@ -1028,9 +1408,23 @@
             main += renderCarouselHtml(msg.products, tid, 'search');
         }
 
-        if (!hasProducts && (msg.content_html || msg.content)) {
+        if (!hasProducts && !hasTrending && (msg.content_html || msg.content)) {
             const html = msg.content_html || esc(msg.content).replace(/\n/g, '<br>');
-            main += `<div class="ai-text-body prose prose-sm max-w-none">${html}</div>`;
+            main += `<div class="ai-text-body prose prose-sm max-w-none">${html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>`;
+            if (msg.type === 'product_create_success' && msg.product?.admin_url) {
+                main += `<a href="${esc(msg.product.admin_url)}" class="inline-flex mt-4 px-4 py-2 rounded-lg bg-[#F57C00] text-white text-sm font-semibold hover:bg-[#E65100]">Open in Admin →</a>`;
+            }
+            if (msg.type === 'product_image_updated' && msg.product?.admin_url) {
+                main += `<a href="${esc(msg.product.admin_url)}" class="inline-flex mt-4 px-4 py-2 rounded-lg bg-[#F57C00] text-white text-sm font-semibold hover:bg-[#E65100]">Open in Admin →</a>`;
+            }
+            if (msg.type === 'cart_contents') {
+                if (msg.checkout_url) {
+                    main += `<a href="${esc(msg.checkout_url)}" class="inline-flex mt-4 px-4 py-2 rounded-lg bg-[#F57C00] text-white text-sm font-semibold hover:bg-[#E65100]">Checkout →</a>`;
+                }
+                if (msg.cart_url) {
+                    main += `<a href="${esc(msg.cart_url)}" class="inline-flex mt-4 ml-2 px-4 py-2 rounded-lg border border-gray-300 text-gray-800 text-sm font-semibold hover:bg-gray-50">Open Cart →</a>`;
+                }
+            }
         } else if (msg.summary && hasProducts && msg.type !== 'platform' && msg.type !== 'trending') {
             main += `<div class="ai-text-body mt-4">${msg.summary.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>`;
         }
@@ -1058,10 +1452,15 @@
             main += `</ul></details>`;
         }
 
-        return `<div class="ai-turn" data-turn-id="${tid}">
-            <div class="ai-turn-grid">
-                <div class="ai-query-side">${esc(q)}</div>
-                <div class="ai-results">${main}</div>
+        const agentWide = hasProducts || hasTrending;
+        const bubbleClass = agentWide ? 'chat-bubble agent wide' : 'chat-bubble agent';
+
+        return `<div class="chat-turn" data-turn-id="${tid}">
+            <div class="chat-row user">
+                <div class="chat-bubble user">${renderUserBubbleContent(q, userImages)}</div>
+            </div>
+            <div class="chat-row agent">
+                <div class="${bubbleClass}">${main}</div>
             </div>
         </div>`;
     }
@@ -1168,11 +1567,11 @@
         });
     }
 
-    function appendTurn(query, msg) {
+    function appendTurn(query, msg, userImages) {
         if (welcome) welcome.remove();
         const products = msg.products || [];
         const el = document.createElement('div');
-        el.innerHTML = renderTurn(query, msg);
+        el.innerHTML = renderTurn(query, msg, userImages);
         const turn = el.firstElementChild;
         feed.appendChild(turn);
         const tid = turn.dataset.turnId;
@@ -1203,14 +1602,19 @@
         el.querySelectorAll('.follow-chip').forEach(btn => {
             btn.addEventListener('click', () => {
                 const q = btn.dataset.query;
-                if (q && /^view cart$/i.test(q.trim())) {
-                    window.open(cartPageUrl, '_blank', 'noopener');
-                    return;
-                }
                 if (q && /^checkout$/i.test(q.trim())) {
                     window.open(checkoutPageUrl, '_blank', 'noopener');
                     return;
                 }
+                if (btn.dataset.mode) {
+                    setStudioMode(btn.dataset.mode);
+                    const prompt = btn.dataset.prompt || '';
+                    if (prompt || ['bestsellers', 'trends'].includes(btn.dataset.mode)) {
+                        sendQuery(prompt);
+                    }
+                    return;
+                }
+                setStudioMode('chat');
                 sendQuery(q);
             });
         });
@@ -1218,17 +1622,23 @@
 
     function scrollBottom() { feed.scrollTop = feed.scrollHeight; }
 
-    function showTyping(query) {
+    function showTyping(query, userImages, label) {
+        const typingLabel = label
+            || ((userImages?.length || String(query).startsWith('📷'))
+                ? 'Analyzing image...'
+                : 'Searching...');
         const el = document.createElement('div');
         el.id = 'agent-typing';
-        el.className = 'ai-turn';
-        el.innerHTML = `<div class="ai-turn-grid">
-            <div class="ai-query-side">${esc(query)}</div>
-            <div class="flex items-center gap-2 text-gray-400 text-sm py-4">
+        el.className = 'chat-turn';
+        el.innerHTML = `<div class="chat-row user">
+            <div class="chat-bubble user">${renderUserBubbleContent(query, userImages)}</div>
+        </div>
+        <div class="chat-row agent">
+            <div class="chat-bubble agent typing">
                 <span class="typing-dot w-2 h-2 bg-gray-400 rounded-full"></span>
                 <span class="typing-dot w-2 h-2 bg-gray-400 rounded-full"></span>
                 <span class="typing-dot w-2 h-2 bg-gray-400 rounded-full"></span>
-                <span>Searching...</span>
+                <span>${typingLabel}</span>
             </div>
         </div>`;
         feed.appendChild(el);
@@ -1237,13 +1647,112 @@
 
     function hideTyping() { document.getElementById('agent-typing')?.remove(); }
 
+    function appendStudioTurn(query, data) {
+        document.getElementById('agent-welcome')?.remove();
+        const tid = ++turnId;
+        const text = esc(data.description || 'Done.').replace(/\n/g, '<br>');
+        let body = `<div class="ai-text-body prose prose-sm max-w-none mb-2">${text}</div>`;
+
+        if (data.image_url) {
+            const createUrl = createProductUrl
+                ? `${createProductUrl}${createProductUrl.includes('?') ? '&' : '?'}design_image=${encodeURIComponent(data.image_url)}`
+                : data.image_url;
+            body += `<img class="studio-design-img" src="${esc(data.image_url)}" alt="AI design">`;
+            body += `<div class="studio-actions">
+                <a class="btn-primary" href="${esc(createUrl)}">Use on new product</a>
+                <a class="btn-ghost" href="${esc(data.image_url)}" target="_blank" rel="noopener">Open image</a>
+            </div>`;
+        }
+
+        const products = Array.isArray(data.products) ? data.products : [];
+        if (products.length) {
+            body += '<div class="studio-product-grid">';
+            products.forEach((p) => {
+                body += `<div class="studio-product-card">`;
+                if (p.image) body += `<img src="${esc(p.image)}" alt="">`;
+                body += `<div>
+                    <div class="sp-name">${esc(p.name || '')}</div>
+                    ${p.price_label ? `<div class="sp-price">${esc(p.price_label)}</div>` : ''}
+                    ${p.meta ? `<div class="sp-meta">${esc(p.meta)}</div>` : ''}
+                    ${p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">View</a>` : ''}
+                </div></div>`;
+            });
+            body += '</div>';
+        }
+
+        const el = document.createElement('div');
+        el.className = 'chat-turn';
+        el.dataset.turn = String(tid);
+        el.innerHTML = `<div class="chat-row user">
+            <div class="chat-bubble user">${esc(query)}</div>
+        </div>
+        <div class="chat-row agent">
+            <div class="chat-bubble agent">${body}</div>
+        </div>`;
+        feed.appendChild(el);
+        scrollBottom();
+    }
+
+    async function sendStudioQuery(text) {
+        if (!aiDesignUrl) {
+            appendTurn(text || 'AI Mode', { summary: 'AI Mode endpoint missing.', type: 'error' });
+            return;
+        }
+
+        const typed = (text || input.value).trim();
+        if (!typed && !['bestsellers', 'trends'].includes(studioMode)) {
+            return;
+        }
+
+        const display = typed || ({
+            bestsellers: 'Show bestsellers',
+            trends: 'Discover trending products',
+        })[studioMode] || typed;
+
+        input.value = '';
+        sendBtn.disabled = true;
+        document.getElementById('agent-welcome')?.remove();
+        showTyping(display, [], MODE_TYPING[studioMode] || 'Working…');
+
+        try {
+            const res = await fetch(aiDesignUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                },
+                body: JSON.stringify({ prompt: typed, mode: studioMode }),
+            });
+            const data = await res.json().catch(() => ({}));
+            hideTyping();
+            if (!res.ok) {
+                throw new Error(data.message || 'Request failed');
+            }
+            appendStudioTurn(display, data);
+        } catch (e) {
+            hideTyping();
+            appendTurn(display, {
+                summary: e.message || 'Request failed. Please try again.',
+                type: 'error',
+            });
+        } finally {
+            sendBtn.disabled = false;
+            input.focus();
+        }
+    }
+
     async function sendQuery(text) {
+        if (STUDIO_MODES.has(studioMode) && !pendingImages.length) {
+            return sendStudioQuery(text);
+        }
+
         const typed = (text || input.value).trim();
         let message = typed;
         if (!message && selectedProduct) {
             message = `Tell me more about ${selectedProduct.name}`;
         }
-        if (!message) return;
+        if (!message && !pendingImages.length) return;
 
         const payload = { message };
         if (selectedProduct) {
@@ -1263,31 +1772,73 @@
             }));
         }
 
+        const imagesToSend = pendingImages.slice();
+        const displayQuery = message || (imagesToSend.length ? `📷 ${imagesToSend.length} image(s)` : '');
+
         input.value = '';
         sendBtn.disabled = true;
-        showTyping(message);
+        showTyping(message || displayQuery, imagesToSend);
 
         try {
-            const res = await fetch(sendUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': csrf,
-                },
-                body: JSON.stringify(payload),
-            });
+            let res;
+            if (imagesToSend.length > 0) {
+                const form = new FormData();
+                form.append('message', message);
+                const attachIntent = /\b(add image|upload image|attach image|image add|image upload|photo add|ছবি যোগ|ছবি দাও|ইমেজ যোগ|image দাও)\b/i.test(message);
+                if (lastCreatedProductId && attachIntent) {
+                    form.append('product_id', String(lastCreatedProductId));
+                }
+                imagesToSend.forEach(file => form.append('images[]', file));
+                if (payload.selected_product) {
+                    Object.entries(payload.selected_product).forEach(([k, v]) => {
+                        if (v != null) form.append(`selected_product[${k}]`, String(v));
+                    });
+                }
+                if (payload.context_products) {
+                    payload.context_products.forEach((p, i) => {
+                        Object.entries(p).forEach(([k, v]) => {
+                            if (v != null) form.append(`context_products[${i}][${k}]`, String(v));
+                        });
+                    });
+                }
+                res = await fetch(sendUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrf,
+                    },
+                    body: form,
+                });
+            } else {
+                res = await fetch(sendUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrf,
+                    },
+                    body: JSON.stringify(payload),
+                });
+            }
             hideTyping();
             if (!res.ok) throw new Error('fail');
             const data = await res.json();
-            if (!data.query) data.query = message;
+            if (!data.query) data.query = displayQuery;
             if (!data.type && data.meta?.type) data.type = data.meta.type;
             if (!data.cart_url && data.meta?.cart_url) data.cart_url = data.meta.cart_url;
             if (!data.checkout_url && data.meta?.checkout_url) data.checkout_url = data.meta.checkout_url;
-            appendTurn(message, data);
+            if (data.type === 'product_create_success' && data.product?.id) {
+                lastCreatedProductId = data.product.id;
+            }
+            if (data.type === 'product_image_updated' && data.product?.id) {
+                lastCreatedProductId = data.product.id;
+            }
+            pendingImages = [];
+            renderImagePreviews();
+            appendTurn(message || displayQuery, data, imagesToSend);
         } catch (e) {
             hideTyping();
-            appendTurn(message, { summary: 'Request failed. Please try again.', type: 'error' });
+            appendTurn(message || displayQuery, { summary: 'Request failed. Please try again.', type: 'error' }, imagesToSend);
         } finally {
             sendBtn.disabled = false;
             input.focus();
@@ -1300,19 +1851,172 @@
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuery(); }
     });
 
-    resetBtn.addEventListener('click', async () => {
-        if (!confirm('Start new chat?')) return;
-        clearInputChip();
-        await fetch(resetUrl, {
-            method: 'POST',
-            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
-        });
-        location.reload();
-    });
+    const micBtn = document.getElementById('agent-mic-btn');
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+    let agentRecognition = null;
+    let agentListening = false;
 
-    document.querySelectorAll('#welcome-chips .follow-chip').forEach(btn => {
-        btn.addEventListener('click', () => sendQuery(btn.dataset.query));
-    });
+    function stopAgentVoice() {
+        if (agentRecognition) {
+            try {
+                agentRecognition.onresult = null;
+                agentRecognition.onerror = null;
+                agentRecognition.onend = null;
+                agentRecognition.stop();
+            } catch (_) {}
+            agentRecognition = null;
+        }
+        agentListening = false;
+        micBtn?.classList.remove('is-listening');
+        if (micBtn) {
+            micBtn.title = 'Voice input';
+            micBtn.setAttribute('aria-pressed', 'false');
+        }
+        if (input) input.placeholder = MODE_PLACEHOLDERS[studioMode] || MODE_PLACEHOLDERS.chat;
+    }
+
+    function toggleAgentVoice() {
+        if (!micBtn) return;
+        if (agentListening) {
+            stopAgentVoice();
+            return;
+        }
+        if (!SpeechRecognitionAPI) {
+            alert('Voice input এই browser-এ সাপোর্ট করে না। Chrome বা Edge ব্যবহার করুন।');
+            return;
+        }
+
+        const recognition = new SpeechRecognitionAPI();
+        recognition.lang = 'bn-BD';
+        recognition.interimResults = true;
+        recognition.continuous = false;
+        recognition.maxAlternatives = 1;
+        let finalTranscript = '';
+
+        recognition.onstart = () => {
+            agentListening = true;
+            micBtn.classList.add('is-listening');
+            micBtn.title = 'Listening… tap to stop';
+            micBtn.setAttribute('aria-pressed', 'true');
+            input.placeholder = 'শুনছি… কথা বলুন';
+        };
+        recognition.onresult = (event) => {
+            let interim = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const transcript = event.results[i][0].transcript;
+                if (event.results[i].isFinal) finalTranscript += transcript;
+                else interim += transcript;
+            }
+            input.value = (finalTranscript || interim).trim();
+        };
+        recognition.onerror = (event) => {
+            stopAgentVoice();
+            if (event.error === 'not-allowed') {
+                alert('Microphone permission দিন — browser address bar-এ mic allow করুন।');
+            } else if (event.error !== 'aborted' && event.error !== 'no-speech') {
+                alert('Voice input ব্যর্থ হয়েছে। আবার চেষ্টা করুন।');
+            }
+        };
+        recognition.onend = () => {
+            const text = (finalTranscript || input.value || '').trim();
+            stopAgentVoice();
+            if (text) {
+                input.value = text;
+                sendQuery(text);
+            }
+        };
+
+        agentRecognition = recognition;
+        try {
+            recognition.start();
+        } catch (_) {
+            stopAgentVoice();
+            alert('Voice input শুরু করা যায়নি। আবার চেষ্টা করুন।');
+        }
+    }
+
+    micBtn?.addEventListener('click', toggleAgentVoice);
+    if (micBtn && !SpeechRecognitionAPI) {
+        micBtn.disabled = true;
+        micBtn.title = 'Voice not supported in this browser';
+    }
+
+    function bindWelcomeChips() {
+        document.querySelectorAll('#agent-welcome .follow-chip').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const mode = btn.dataset.mode;
+                const prompt = btn.dataset.prompt || '';
+                if (mode) {
+                    setStudioMode(mode);
+                    if (prompt) {
+                        input.value = prompt;
+                    }
+                    if (['bestsellers', 'trends'].includes(mode) || prompt) {
+                        sendQuery(prompt);
+                    } else {
+                        input.focus();
+                    }
+                    return;
+                }
+                if (btn.dataset.query) {
+                    setStudioMode('chat');
+                    sendQuery(btn.dataset.query);
+                }
+            });
+        });
+    }
+
+    function restoreWelcome() {
+        if (!welcomeTemplate) return;
+        feed.innerHTML = '';
+        feed.insertAdjacentHTML('beforeend', welcomeTemplate);
+        welcome = document.getElementById('agent-welcome');
+        bindWelcomeChips();
+    }
+
+    function resetChatUI() {
+        stopAgentVoice();
+        turnId = 0;
+        selectedProduct = null;
+        lastPlatformProducts = [];
+        sectionProductsStore.clear();
+        pendingImages = [];
+        lastCreatedProductId = null;
+        window.__AGENT_INITIAL__ = [];
+        clearInputChip();
+        input.value = '';
+        renderImagePreviews();
+        restoreWelcome();
+        scrollBottom();
+    }
+
+    async function resetAgentChat() {
+        resetBtn.disabled = true;
+        try {
+            const res = await fetch(resetUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            if (!res.ok) {
+                throw new Error('reset failed');
+            }
+            resetChatUI();
+        } catch {
+            appendTurn('system', { content: 'Chat reset ব্যর্থ। আবার চেষ্টা করুন।', type: 'error' });
+        } finally {
+            resetBtn.disabled = false;
+            input.focus();
+        }
+    }
+
+    resetBtn.addEventListener('click', () => resetAgentChat());
+
+    bindWelcomeChips();
 
     let prevUser = '';
   let pendingUser = '';

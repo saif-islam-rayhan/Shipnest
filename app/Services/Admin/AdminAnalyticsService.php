@@ -94,6 +94,50 @@ class AdminAnalyticsService
             ->toArray();
     }
 
+    public function ordersLast7Days(): array
+    {
+        $start = now()->subDays(6)->startOfDay();
+        $rows = Order::query()
+            ->selectRaw('DATE(created_at) as date, COUNT(*) as total')
+            ->where('created_at', '>=', $start)
+            ->groupBy('date')
+            ->orderBy('date')
+            ->pluck('total', 'date');
+
+        $labels = [];
+        $data = [];
+
+        for ($i = 0; $i < 7; $i++) {
+            $date = $start->copy()->addDays($i)->format('Y-m-d');
+            $labels[] = Carbon::parse($date)->format('D');
+            $data[] = (int) ($rows[$date] ?? 0);
+        }
+
+        return compact('labels', 'data');
+    }
+
+    public function newUsersLast30Days(): array
+    {
+        $start = now()->subDays(29)->startOfDay();
+        $rows = User::query()
+            ->selectRaw('DATE(created_at) as date, COUNT(*) as total')
+            ->where('created_at', '>=', $start)
+            ->groupBy('date')
+            ->orderBy('date')
+            ->pluck('total', 'date');
+
+        $labels = [];
+        $data = [];
+
+        for ($i = 0; $i < 30; $i++) {
+            $date = $start->copy()->addDays($i)->format('Y-m-d');
+            $labels[] = Carbon::parse($date)->format('M d');
+            $data[] = (int) ($rows[$date] ?? 0);
+        }
+
+        return compact('labels', 'data');
+    }
+
     public function commissionReport(int $days = 30): array
     {
         $rate = (float) config('shipnest.commission_rate', 10);

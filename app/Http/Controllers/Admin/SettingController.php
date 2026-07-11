@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Services\DynamicConfigService;
+use App\Services\Market\Llm\LlmProviderManager;
 use App\Services\Payment\SSLCommerzService;
 use App\Services\SettingService;
 use Illuminate\Http\JsonResponse;
@@ -19,6 +20,7 @@ class SettingController extends Controller
         private readonly SettingService $settings,
         private readonly DynamicConfigService $dynamicConfig,
         private readonly SSLCommerzService $sslCommerz,
+        private readonly LlmProviderManager $llmProviders,
     ) {}
 
     public function edit(): View
@@ -34,6 +36,9 @@ class SettingController extends Controller
             'free_shipping_threshold' => config('shipnest.free_shipping_threshold'),
             'contact_email' => config('shipnest.support_email'),
             'contact_phone' => config('shipnest.support_phone'),
+            'google_login_enabled' => config('shipnest.google_login_enabled') ? '1' : '0',
+            'google_client_id' => config('services.google.client_id'),
+            'google_redirect_uri' => config('services.google.redirect', url('/auth/google/callback')),
         ]);
 
         $database = $this->settings->mergedGroup('database', [
@@ -95,12 +100,47 @@ class SettingController extends Controller
             'default_commission_rate' => config('shipnest.commission_rate'),
         ]);
 
+        $language = $this->settings->mergedGroup('language', [
+            'default_locale' => config('shipnest.localization.default_locale', config('app.locale', 'en')),
+            'locale_en_enabled' => in_array('en', config('shipnest.localization.available_locales', ['en']), true) ? '1' : '0',
+            'locale_bn_enabled' => in_array('bn', config('shipnest.localization.available_locales', ['en', 'bn']), true) ? '1' : '0',
+            'language_switcher_enabled' => config('shipnest.localization.language_switcher_enabled', true) ? '1' : '0',
+        ]);
+
+        $location = $this->settings->mergedGroup('location', [
+            'map_enabled' => config('shipnest.map.enabled', true) ? '1' : '0',
+            'map_provider' => config('shipnest.map.provider', 'leaflet'),
+            'map_default_lat' => (string) config('shipnest.map.default_lat', 23.8103),
+            'map_default_lng' => (string) config('shipnest.map.default_lng', 90.4125),
+            'map_default_zoom' => (string) config('shipnest.map.default_zoom', 12),
+            'map_country_code' => config('shipnest.map.country_code', 'bd'),
+            'google_maps_api_key' => config('shipnest.map.google_maps_api_key'),
+        ]);
+
+        $agent = $this->settings->mergedGroup('agent', [
+            'agent_name' => config('shipnest.agent.name', 'ShipNest AI'),
+            'agent_logo' => config('shipnest.agent.logo'),
+            'use_live_llm' => config('market.use_live_llm') ? '1' : '0',
+            'github_models_endpoint' => config('market.github_models_endpoint'),
+            'model_google_search' => config('market.model_google_search'),
+            'model_vision' => config('market.model_vision'),
+            'use_google_ai_mode' => config('market.use_google_ai_mode') ? '1' : '0',
+            'search_backend' => config('market.search_backend'),
+            'searxng_url' => config('market.searxng_url'),
+            'google_ai_mode_gl' => config('market.google_ai_mode_gl'),
+            'google_ai_mode_hl' => config('market.google_ai_mode_hl'),
+            'google_ai_mode_location' => config('market.google_ai_mode_location'),
+        ]);
+
         $secureHints = [
             'database' => ['db_password'],
             'payment' => ['sslcommerz_store_password', 'bkash_app_secret', 'bkash_password', 'nagad_private_key', 'stripe_secret', 'stripe_webhook_secret'],
             'mail' => ['mail_password'],
             'sms' => ['twilio_token'],
+            'general' => ['google_client_secret'],
             'integrations' => ['google_client_secret', 'facebook_client_secret', 'pusher_app_secret', 'aws_secret_access_key', 'meilisearch_key', 'redis_password'],
+            'location' => ['google_maps_api_key'],
+            'agent' => ['tavily_api_key', 'serpapi_key'],
         ];
 
         $hasSecure = [];
@@ -114,8 +154,21 @@ class SettingController extends Controller
             $hasSecure['sslcommerz_store_password'] = true;
         }
 
+        foreach (['tavily_api_key' => 'TAVILY_API_KEY', 'serpapi_key' => 'SERPAPI_KEY'] as $key => $envKey) {
+            if (! ($hasSecure[$key] ?? false) && filled(env($envKey))) {
+                $hasSecure[$key] = true;
+            }
+        }
+
+        if (! ($hasSecure['google_client_secret'] ?? false) && filled(env('GOOGLE_CLIENT_SECRET'))) {
+            $hasSecure['google_client_secret'] = true;
+        }
+
+        $this->llmProviders->migrateLegacyGithubConfig();
+        $llmProviderCards = $this->llmProviders->cardsForAdmin();
+
         return view('admin.settings.edit', compact(
-            'tab', 'general', 'database', 'payment', 'paymentMeta', 'mail', 'sms', 'integrations', 'commission', 'hasSecure',
+            'tab', 'general', 'database', 'payment', 'paymentMeta', 'mail', 'sms', 'integrations', 'commission', 'language', 'location', 'agent', 'hasSecure', 'llmProviderCards',
         ));
     }
 
@@ -131,6 +184,9 @@ class SettingController extends Controller
             'sms' => $this->updateSms($request),
             'integrations' => $this->updateIntegrations($request),
             'commission' => $this->updateCommission($request),
+            'language' => $this->updateLanguage($request),
+            'location' => $this->updateLocation($request),
+            'agent' => $this->updateAgent($request),
             default => null,
         };
 
@@ -143,7 +199,9 @@ class SettingController extends Controller
 
         Artisan::call('config:clear');
 
-        return back()->with('success', ucfirst($group).' settings saved and applied.');
+        return redirect()
+            ->route('admin.settings.edit', ['tab' => $group])
+            ->with('success', ucfirst($group).' settings saved and applied.');
     }
 
     public function toggleMaintenance(Request $request): RedirectResponse
@@ -158,7 +216,9 @@ class SettingController extends Controller
 
         $this->settings->set('maintenance_mode', $enabled ? '1' : '0', 'general');
 
-        return back()->with('success', $enabled ? 'Maintenance mode enabled.' : 'Maintenance mode disabled.');
+        return redirect()
+            ->route('admin.settings.edit', ['tab' => 'maintenance'])
+            ->with('success', $enabled ? 'Maintenance mode enabled.' : 'Maintenance mode disabled.');
     }
 
     protected function updateGeneral(Request $request): void
@@ -175,12 +235,16 @@ class SettingController extends Controller
             'contact_address' => ['nullable', 'string'],
             'logo' => ['nullable', 'image'],
             'favicon' => ['nullable', 'image'],
+            'google_client_id' => ['nullable', 'string', 'max:512'],
+            'google_redirect_uri' => ['nullable', 'url', 'max:512'],
+            'google_client_secret' => ['nullable', 'string', 'max:512'],
         ]);
 
         $this->settings->persist($request, [
             'site_name', 'app_url', 'app_timezone', 'currency', 'currency_symbol',
             'free_shipping_threshold', 'contact_email', 'contact_phone', 'contact_address',
-        ], 'general');
+            'google_client_id', 'google_redirect_uri',
+        ], 'general', ['google_client_secret'], ['google_login_enabled']);
 
         if ($request->hasFile('logo')) {
             $this->settings->set('logo', $request->file('logo')->store('settings', 'public'), 'general');
@@ -291,14 +355,13 @@ class SettingController extends Controller
     protected function updateIntegrations(Request $request): void
     {
         $this->settings->persist($request, [
-            'google_client_id', 'google_redirect_uri',
             'facebook_client_id', 'facebook_redirect_uri',
             'pusher_app_id', 'pusher_app_key', 'pusher_app_cluster',
             'aws_access_key_id', 'aws_default_region', 'aws_bucket',
             'scout_driver', 'meilisearch_host',
             'redis_host', 'redis_port',
         ], 'integrations', [
-            'google_client_secret', 'facebook_client_secret', 'pusher_app_secret',
+            'facebook_client_secret', 'pusher_app_secret',
             'aws_secret_access_key', 'meilisearch_key', 'redis_password',
         ]);
     }
@@ -308,5 +371,132 @@ class SettingController extends Controller
         $request->validate(['default_commission_rate' => ['nullable', 'numeric', 'min:0', 'max:100']]);
         $this->settings->set('default_commission_rate', $request->input('default_commission_rate', 10), 'commission');
         config(['shipnest.commission_rate' => (float) $request->input('default_commission_rate', 10)]);
+    }
+
+    protected function updateLanguage(Request $request): void
+    {
+        $request->validate([
+            'default_locale' => ['required', 'string', 'in:en,bn'],
+        ]);
+
+        $this->settings->persist($request, [
+            'default_locale',
+        ], 'language', [], [
+            'locale_en_enabled', 'locale_bn_enabled', 'language_switcher_enabled',
+        ]);
+    }
+
+    protected function updateLocation(Request $request): void
+    {
+        $request->validate([
+            'map_provider' => ['nullable', 'string', 'in:leaflet,google'],
+            'map_default_lat' => ['nullable', 'numeric', 'between:-90,90'],
+            'map_default_lng' => ['nullable', 'numeric', 'between:-180,180'],
+            'map_default_zoom' => ['nullable', 'integer', 'min:1', 'max:20'],
+            'map_country_code' => ['nullable', 'string', 'max:2'],
+            'google_maps_api_key' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $this->settings->persist($request, [
+            'map_provider', 'map_default_lat', 'map_default_lng', 'map_default_zoom', 'map_country_code',
+        ], 'location', ['google_maps_api_key'], ['map_enabled']);
+    }
+
+    public function updateLlmProvider(Request $request): JsonResponse
+    {
+        $request->validate([
+            'provider' => ['required', 'string'],
+            'api_key' => ['nullable', 'string', 'max:512'],
+            'model' => ['nullable', 'string', 'max:128'],
+            'vision_model' => ['nullable', 'string', 'max:128'],
+            'base_url' => ['nullable', 'string', 'max:255'],
+            'enabled' => ['nullable', 'boolean'],
+        ]);
+
+        $providerId = $request->string('provider')->toString();
+
+        if ($request->has('enabled') && $request->boolean('enabled')) {
+            $cards = collect($this->llmProviders->cardsForAdmin());
+            $card = $cards->firstWhere('id', $providerId);
+            $hasKey = filled($request->input('api_key')) || ($card['configured'] ?? false);
+
+            if (! $hasKey) {
+                return response()->json(['message' => 'Configure API key before enabling this provider.'], 422);
+            }
+        }
+
+        try {
+            $this->llmProviders->saveProvider($providerId, [
+                'api_key' => $request->input('api_key'),
+                'model' => $request->input('model'),
+                'vision_model' => $request->input('vision_model'),
+                'base_url' => $request->input('base_url'),
+                'enabled' => $request->has('enabled') ? $request->boolean('enabled') : null,
+            ]);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        $this->settings->flush();
+        $this->dynamicConfig->apply();
+        Artisan::call('config:clear');
+
+        return response()->json([
+            'message' => 'Provider saved.',
+            'providers' => $this->llmProviders->cardsForAdmin(),
+        ]);
+    }
+
+    public function testLlmProvider(Request $request): JsonResponse
+    {
+        $request->validate([
+            'provider' => ['required', 'string'],
+        ]);
+
+        $providerId = $request->string('provider')->toString();
+        $result = $this->llmProviders->testProvider($providerId);
+
+        $this->settings->flush();
+        $this->dynamicConfig->apply();
+
+        return response()->json([
+            'success' => $result['success'],
+            'message' => $result['message'],
+            'providers' => $this->llmProviders->cardsForAdmin(),
+        ], $result['success'] ? 200 : 422);
+    }
+
+    protected function updateAgent(Request $request): void
+    {
+        $request->validate([
+            'agent_name' => ['nullable', 'string', 'max:128'],
+            'agent_logo' => ['nullable', 'image', 'max:2048'],
+            'search_backend' => ['nullable', 'string', 'in:duckduckgo,searxng,tavily,serpapi,free'],
+            'searxng_url' => ['nullable', 'url'],
+            'google_ai_mode_gl' => ['nullable', 'string', 'max:8'],
+            'google_ai_mode_hl' => ['nullable', 'string', 'max:8'],
+            'google_ai_mode_location' => ['nullable', 'string', 'max:128'],
+            'tavily_api_key' => ['nullable', 'string', 'max:512'],
+            'serpapi_key' => ['nullable', 'string', 'max:512'],
+        ]);
+
+        $this->settings->persist($request, [
+            'agent_name',
+            'search_backend',
+            'searxng_url',
+            'google_ai_mode_gl',
+            'google_ai_mode_hl',
+            'google_ai_mode_location',
+        ], 'agent', [
+            'tavily_api_key',
+            'serpapi_key',
+        ], [
+            'use_live_llm',
+            'use_google_ai_mode',
+        ]);
+
+        if ($request->hasFile('agent_logo')) {
+            $this->settings->set('agent_logo', $request->file('agent_logo')->store('settings', 'public'), 'agent');
+        }
     }
 }

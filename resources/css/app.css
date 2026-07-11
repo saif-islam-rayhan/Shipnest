@@ -1,3 +1,5 @@
+@import './agent-fab.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -92,21 +94,346 @@
         @apply rounded-xl bg-white p-6 ring-1 ring-gray-200;
     }
 
+    /* Admin shell */
+    .admin-shell {
+        @apply bg-slate-50 text-gray-800;
+    }
+
+    .admin-sidebar {
+        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        box-shadow: 4px 0 20px rgba(15, 23, 42, 0.12);
+    }
+
+    .admin-nav-link {
+        @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 transition;
+    }
+
+    .admin-nav-link:hover {
+        background-color: rgba(255, 255, 255, 0.08);
+        @apply text-white;
+    }
+
+    .admin-nav-link-active {
+        @apply border-l-[3px] border-[#F57C00] bg-[#F57C00]/15 pl-[9px] text-white;
+    }
+
+    .admin-nav-section-label {
+        @apply mb-1 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-500;
+    }
+
+    .admin-topbar {
+        @apply border-b border-gray-200 bg-white shadow-sm;
+    }
+
+    .admin-icon-btn {
+        @apply inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-800;
+    }
+
+    .admin-card {
+        @apply overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200/80;
+    }
+
+    .admin-card-body {
+        @apply p-5;
+    }
+
+    .admin-nav-children {
+        @apply ml-4 space-y-0.5 border-l border-white/10 pl-2;
+    }
+
+    .admin-nav-sublink {
+        @apply block rounded-lg py-2 pl-3 pr-2 text-sm text-slate-400 transition;
+    }
+
+    .admin-nav-sublink:hover {
+        @apply bg-white/5 text-slate-200;
+    }
+
+    .admin-nav-sublink.is-active {
+        @apply border-l-2 border-[#F57C00] bg-[#F57C00]/10 pl-[10px] font-medium text-white;
+    }
+
+    .settings-panel {
+        @apply min-w-0;
+    }
+
+    .settings-panel-header {
+        @apply mb-4;
+    }
+
+    .settings-panel-title {
+        @apply text-lg font-semibold text-gray-900;
+    }
+
+    .settings-panel-subtitle {
+        @apply mt-1 text-sm text-gray-500;
+    }
+
+    .settings-card {
+        @apply rounded-xl bg-white p-6 ring-1 ring-gray-200/80;
+    }
+
+    .agent-identity-card {
+        @apply max-w-6xl;
+    }
+
+    .agent-identity-head {
+        @apply border-b border-gray-100 pb-4;
+    }
+
+    .agent-identity-preview {
+        @apply flex items-center gap-4;
+    }
+
+    .agent-identity-logo {
+        @apply h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-indigo-100;
+    }
+
+    .agent-identity-logo--sm {
+        @apply h-8 w-8 ring-1;
+    }
+
+    .agent-identity-logo-fallback {
+        @apply inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-indigo-50 ring-2 ring-indigo-100;
+    }
+
+    .agent-identity-logo-fallback--sm {
+        @apply h-8 w-8 ring-1;
+    }
+
+    .agent-identity-title {
+        @apply text-lg font-semibold text-gray-900;
+    }
+
+    .agent-identity-subtitle {
+        @apply mt-0.5 text-sm text-gray-500;
+    }
+
+    .llm-providers-shell {
+        @apply max-w-none p-6;
+    }
+
+    .llm-providers-head {
+        @apply mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between;
+    }
+
+    .llm-providers-title {
+        @apply text-lg font-semibold text-gray-900;
+    }
+
+    .llm-providers-subtitle {
+        @apply mt-1 text-sm text-gray-500;
+    }
+
+    .llm-providers-alert {
+        @apply rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800;
+    }
+
+    .llm-providers-grid {
+        @apply grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3;
+    }
+
+    .llm-provider-card {
+        @apply flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm;
+    }
+
+    .llm-provider-head {
+        @apply mb-4 flex items-start gap-3;
+    }
+
+    .llm-provider-icon {
+        @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-sm;
+    }
+
+    .llm-provider-head-text {
+        @apply min-w-0 flex-1;
+    }
+
+    .llm-provider-title-row {
+        @apply flex flex-col gap-0.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3;
+    }
+
+    .llm-provider-name {
+        @apply text-base font-semibold text-gray-900;
+    }
+
+    .llm-provider-tagline {
+        @apply text-xs leading-snug text-gray-400 sm:max-w-[48%] sm:text-right;
+    }
+
+    .llm-provider-meta {
+        @apply space-y-2 border-t border-gray-100 pt-3 text-xs text-gray-600;
+    }
+
+    .llm-provider-meta-row {
+        @apply flex items-center justify-between gap-3;
+    }
+
+    .llm-provider-meta-row dt {
+        @apply text-gray-500;
+    }
+
+    .llm-provider-meta-row dd code {
+        @apply rounded bg-gray-50 px-1.5 py-0.5 font-mono text-[11px] text-gray-800;
+    }
+
+    .llm-provider-extra {
+        @apply mt-3 space-y-1 border-t border-gray-100 pt-3 text-xs text-gray-500;
+    }
+
+    .llm-provider-enable {
+        @apply mt-4 flex items-center gap-2 text-sm text-gray-700;
+    }
+
+    .llm-provider-actions {
+        @apply mt-4 flex flex-wrap gap-2 border-t border-gray-100 pt-4;
+    }
+
+    .llm-badge {
+        @apply inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-semibold;
+    }
+
+    .llm-badge-active { @apply bg-green-100 text-green-800; }
+    .llm-badge-pass { @apply bg-green-100 text-green-800; }
+    .llm-badge-fail { @apply bg-red-100 text-red-800; }
+    .llm-badge-muted { @apply bg-gray-100 text-gray-600; }
+
+    .llm-btn-configure,
+    .llm-btn-test {
+        @apply inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition;
+    }
+
+    .llm-btn-configure {
+        @apply bg-green-600 hover:bg-green-700;
+    }
+
+    .llm-btn-test {
+        @apply bg-green-600 hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50;
+    }
+
+    .llm-modal-backdrop {
+        @apply fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4;
+    }
+
+    .llm-modal {
+        @apply w-full max-w-md rounded-xl bg-white p-5 shadow-xl;
+    }
+
+    .admin-filter-bar {
+        @apply flex flex-wrap items-end gap-2 rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200/80;
+    }
+
+    .admin-page-header {
+        @apply mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between;
+    }
+
+    .admin-page-title {
+        @apply text-xl font-bold tracking-tight text-gray-900;
+    }
+
+    .admin-page-subtitle {
+        @apply mt-0.5 text-sm text-gray-500;
+    }
+
+    .admin-breadcrumb {
+        @apply mb-1 flex items-center gap-1.5 text-xs text-gray-400;
+    }
+
+    .admin-breadcrumb a {
+        @apply transition hover:text-[#F57C00];
+    }
+
+    .admin-table {
+        @apply w-full text-sm;
+    }
+
+    .admin-table thead {
+        @apply border-b border-gray-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500;
+    }
+
+    .admin-table thead th {
+        @apply px-4 py-3;
+    }
+
+    .admin-table tbody tr {
+        @apply border-b border-gray-50 transition hover:bg-slate-50/80;
+    }
+
+    .admin-table tbody td {
+        @apply px-4 py-3;
+    }
+
+    .admin-badge {
+        @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+    }
+
+    .admin-link {
+        @apply text-sm font-medium text-[#F57C00] hover:text-[#e65100] hover:underline;
+    }
+
+    .admin-empty {
+        @apply px-6 py-12 text-center text-sm text-gray-400;
+    }
+
     /* Admin dashboard */
     .dash-welcome {
         @apply relative overflow-hidden rounded-2xl bg-gradient-to-br from-secondary via-secondary-800 to-secondary-900 p-6 text-white shadow-lg lg:p-8;
     }
 
     .dash-stat-card {
-        @apply relative overflow-hidden rounded-xl bg-white p-5 ring-1 ring-gray-200 transition hover:shadow-md hover:ring-gray-300;
+        @apply relative overflow-hidden rounded-xl p-5 text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg;
+    }
+
+    .dash-stat-revenue {
+        background: linear-gradient(to bottom right, #f97316, #d97706);
+    }
+
+    .dash-stat-orders {
+        background: linear-gradient(to bottom right, #3b82f6, #4f46e5);
+    }
+
+    .dash-stat-products {
+        background: linear-gradient(to bottom right, #8b5cf6, #9333ea);
+    }
+
+    .dash-stat-merchants {
+        background: linear-gradient(to bottom right, #10b981, #059669);
+    }
+
+    .dash-stat-users {
+        background: linear-gradient(to bottom right, #0ea5e9, #0891b2);
+    }
+
+    .dash-stat-pending {
+        background: linear-gradient(to bottom right, #f59e0b, #ea580c);
+    }
+
+    .dash-stat-label {
+        @apply relative mt-4 text-xs font-medium uppercase tracking-wide;
+        color: rgba(255, 255, 255, 0.85);
+    }
+
+    .dash-stat-value {
+        @apply relative mt-1 text-2xl font-bold text-white;
+    }
+
+    .dash-stat-sub {
+        @apply relative mt-1 text-xs;
+        color: rgba(255, 255, 255, 0.75);
     }
 
     .dash-stat-icon {
-        @apply flex h-11 w-11 items-center justify-center rounded-xl;
+        @apply flex h-11 w-11 items-center justify-center rounded-xl text-white backdrop-blur-sm;
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .dash-stat-glow {
+        @apply pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full;
+        background: rgba(255, 255, 255, 0.1);
     }
 
     .dash-panel {
-        @apply rounded-xl bg-white ring-1 ring-gray-200;
+        @apply rounded-xl bg-white shadow-sm ring-1 ring-gray-200/80;
     }
 
     .dash-panel-head {
@@ -123,6 +450,21 @@
 
     .dash-badge {
         @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+    }
+
+    .dash-trend-up {
+        color: #d1fae5;
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .dash-trend-down {
+        color: #fee2e2;
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .dash-trend-neutral {
+        @apply text-xs;
+        color: rgba(255, 255, 255, 0.5);
     }
 
     .dash-quick-action {
@@ -145,8 +487,97 @@
     .scrollbar-hide::-webkit-scrollbar {
         display: none;
     }
+
+    .map-picker-preview-btn {
+        @apply relative block w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-100 text-left;
+    }
+
+    .map-picker-preview-canvas {
+        @apply h-36 w-full;
+    }
+
+    .map-picker-preview-overlay {
+        @apply pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25 transition group-hover:bg-black/35;
+    }
+
+    .map-picker-preview-label {
+        @apply rounded-full bg-white/95 px-4 py-1.5 text-sm font-medium text-gray-800 shadow-sm;
+    }
+
+    .map-picker-modal {
+        @apply fixed inset-0 z-[80] flex items-end justify-center p-0 sm:items-center sm:p-4;
+    }
+
+    .map-picker-modal-backdrop {
+        @apply absolute inset-0 bg-black/50;
+    }
+
+    .map-picker-modal-panel {
+        @apply relative z-10 flex w-full max-w-2xl flex-col rounded-t-2xl bg-white p-4 shadow-xl sm:rounded-2xl sm:p-5;
+    }
+
+    .map-picker-modal-head {
+        @apply mb-2 flex items-center justify-between gap-3;
+    }
+
+    .map-picker-modal-title {
+        @apply text-base font-semibold text-gray-900;
+    }
+
+    .map-picker-modal-close {
+        @apply text-2xl leading-none text-gray-400 hover:text-gray-700;
+    }
+
+    .map-picker-modal-hint {
+        @apply mb-3 text-xs text-gray-500;
+    }
+
+    .map-picker-modal-canvas {
+        @apply h-[55vh] min-h-[280px] w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-100 sm:h-[420px];
+    }
+
+    body.map-picker-modal-open {
+        @apply overflow-hidden;
+    }
 }
 
 [x-cloak] {
     display: none !important;
+}
+
+/* AI description ghost text inside Quill */
+.product-ai-ghost {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    overflow: auto;
+    padding: 12px 15px;
+    pointer-events: none;
+    background: transparent;
+}
+.product-ai-ghost.hidden {
+    display: none !important;
+}
+.product-ai-ghost-text {
+    color: #9ca3af;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    opacity: 0.85;
+}
+.product-ai-ghost-hint {
+    margin-top: 0.75rem;
+    font-size: 0.75rem;
+    color: #F57C00;
+    font-weight: 500;
+}
+#quill-editor.has-ai-ghost .ql-editor.ql-blank::before {
+    opacity: 0;
+}
+#quill-editor .ql-container {
+    max-height: 220px;
+}
+#quill-editor .ql-editor {
+    max-height: 180px;
+    overflow-y: auto;
 }

@@ -34,7 +34,7 @@ class PaymentService
         $result = $this->resolveGateway($method)->initiate($order, $user, $reference, $options);
 
         if ($result['success'] && ($result['confirmed'] ?? false)) {
-            $this->confirmRelatedOrders($result['payment'] ?? null, [$order->id]);
+            $this->confirmRelatedOrders($result['payment'] ?? null, $options['order_ids'] ?? [$order->id]);
         }
 
         return $result;
@@ -212,7 +212,10 @@ class PaymentService
         Order::query()
             ->whereIn('id', $ids)
             ->each(function (Order $order) {
-                $order->update(['payment_status' => PaymentStatus::Completed->value]);
+                if ($order->payment_method !== PaymentMethod::Cod) {
+                    $order->update(['payment_status' => PaymentStatus::Completed->value]);
+                }
+
                 $this->orderService->confirmOrder($order);
             });
     }

@@ -29,6 +29,63 @@ class PlatformProductAgent
     /**
      * @return array{content: string, meta: array<string, mixed>}
      */
+    /**
+     * ShipNest catalog trending — no web search, works without login or LLM.
+     *
+     * @return array{content: string, meta: array<string, mixed>}
+     */
+    public function trending(): array
+    {
+        $raw = $this->productService->agentRelatedTrending('', [], self::MAX_TRENDING);
+        $allProducts = AgentResponseBuilder::formatPlatformTrendingProducts($raw);
+        $total = count($allProducts);
+        $thoughtProcess = [
+            'Query intent: ShipNest catalog trending (featured + popular products)',
+            'Found '.$total.' trending product(s) in ShipNest catalog',
+        ];
+
+        if ($total === 0) {
+            return AgentResponseBuilder::make(
+                '⚠️ ShipNest-এ এখনো কোনো trending product নেই। Admin panel থেকে product add করুন এবং **featured** mark করুন।',
+                [
+                    'type' => 'platform',
+                    'intent' => QueryIntent::PLATFORM_SEARCH,
+                    'catalog_mode' => 'trending',
+                    'summary' => 'No trending products on ShipNest yet.',
+                    'products' => [],
+                    'products_all' => [],
+                    'cart_url' => route('cart.index'),
+                    'follow_ups' => ['watch', 'earbuds', 'kurti'],
+                    'thought_process' => $thoughtProcess,
+                    'query' => 'trending product',
+                ],
+            );
+        }
+
+        $nameLines = collect($allProducts)
+            ->take(10)
+            ->map(fn (array $p, int $i) => ($i + 1).'. **'.($p['name'] ?? '').'** — '.($p['price_label'] ?? ''))
+            ->implode("\n");
+
+        $content = "🔥 **ShipNest Trending Products** ({$total})\n\n{$nameLines}\n\n"
+            .'নিচে product card থেকে **Add to cart** করুন, অথবা `view cart` লিখুন।';
+
+        return AgentResponseBuilder::make($content, [
+            'type' => 'platform',
+            'intent' => QueryIntent::PLATFORM_SEARCH,
+            'catalog_mode' => 'trending',
+            'summary' => "ShipNest-এ **{$total}টি** trending product — select করে cart-এ add করুন (login লাগবে না)।",
+            'products' => array_slice($allProducts, 0, self::PREVIEW_COUNT),
+            'products_all' => $allProducts,
+            'products_preview_count' => self::PREVIEW_COUNT,
+            'total_count' => $total,
+            'cart_url' => route('cart.index'),
+            'follow_ups' => ['view cart', 'watch', 'earbuds'],
+            'thought_process' => $thoughtProcess,
+            'query' => 'trending product',
+        ]);
+    }
+
     public function search(string $message, ?CompositeQuery $parsed = null): array
     {
         $term = $this->normalizeTerm($this->intentClassifier->extractProductTerm($message));

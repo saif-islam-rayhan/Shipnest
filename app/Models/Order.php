@@ -197,7 +197,11 @@ class Order extends Model
 
     public function getAmountDueOnDeliveryAttribute(): float
     {
-        return max(0, (float) $this->subtotal - (float) $this->discount);
+        if ($this->payment_method !== PaymentMethod::Cod) {
+            return 0;
+        }
+
+        return max(0, (float) $this->total);
     }
 
     public function getFormattedTotalAttribute(): string
