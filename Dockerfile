@@ -9,7 +9,11 @@ COPY public ./public
 RUN npm run build
 
 # ---- PHP dependencies ----
+# Install pcntl here so Composer's platform check passes for laravel/horizon
 FROM composer:2 AS vendor
+RUN docker-php-ext-configure pcntl --enable-pcntl \
+  && docker-php-ext-install -j$(nproc) pcntl \
+  && docker-php-ext-enable pcntl
 WORKDIR /app
 COPY composer.json composer.lock ./
 RUN composer install \
@@ -36,6 +40,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxml2-dev \
     $PHPIZE_DEPS \
   && docker-php-ext-configure gd --with-freetype --with-jpeg \
+  && docker-php-ext-configure pcntl --enable-pcntl \
   && docker-php-ext-install -j$(nproc) \
     pdo_mysql \
     mbstring \
@@ -46,6 +51,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zip \
     intl \
     opcache \
+  && docker-php-ext-enable pcntl \
   && pecl install redis \
   && docker-php-ext-enable redis \
   && apt-get purge -y --auto-remove $PHPIZE_DEPS \
