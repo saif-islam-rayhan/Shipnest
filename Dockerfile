@@ -8,22 +8,7 @@ COPY resources ./resources
 COPY public ./public
 RUN npm run build
 
-# ---- PHP dependencies ----
-# Install pcntl here so Composer's platform check passes for laravel/horizon
-FROM composer:2 AS vendor
-RUN docker-php-ext-configure pcntl --enable-pcntl \
-  && docker-php-ext-install -j$(nproc) pcntl \
-  && docker-php-ext-enable pcntl
-WORKDIR /app
-COPY composer.json composer.lock ./
-RUN composer install \
-    --no-dev \
-    --no-scripts \
-    --no-interaction \
-    --prefer-dist \
-    --optimize-autoloader
-
-# ---- Runtime ----
+# ---- Runtime (extensions first, then Composer) ----
 FROM php:8.3-fpm-bookworm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -31,6 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     supervisor \
     curl \
     unzip \
+    git \
     libpng-dev \
     libjpeg62-turbo-dev \
     libfreetype6-dev \
@@ -57,9 +43,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && apt-get purge -y --auto-remove $PHPIZE_DEPS \
   && rm -rf /var/lib/apt/lists/*
 
+# Composer binary (extensions already present so platform checks pass)
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
 WORKDIR /var/www/html
 
-COPY --from=vendor /app/vendor ./vendor
+COPY composer.json composer.lock ./
+RUN composer install \
+    --no-dev \
+    --no-scripts \
+    --no-interaction \
+    --prefer-dist \
+    --optimize-autoloader
+
 COPY . .
 COPY --from=frontend /app/public/build ./public/build
 
