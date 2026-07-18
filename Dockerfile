@@ -8,8 +8,8 @@ COPY resources ./resources
 COPY public ./public
 RUN npm run build
 
-# ---- Runtime (extensions first, then Composer) ----
-FROM php:8.3-fpm-bookworm
+# ---- Runtime (PHP 8.4 FPM + Composer with pcntl) ----
+FROM php:8.4-fpm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nginx \
@@ -43,7 +43,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && apt-get purge -y --auto-remove $PHPIZE_DEPS \
   && rm -rf /var/lib/apt/lists/*
 
-# Composer binary (extensions already present so platform checks pass)
+# Composer binary (runs on PHP 8.4 with pcntl already enabled)
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
