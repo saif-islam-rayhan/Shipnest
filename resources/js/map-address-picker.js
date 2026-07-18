@@ -5,10 +5,16 @@ function fieldName(prefix, name) {
 }
 
 function setField(root, prefix, name, value) {
-    const input = root.querySelector(`[name="${fieldName(prefix, name)}"]`);
-    if (input && value !== undefined && value !== null && value !== '') {
+    if (value === undefined || value === null || value === '') return;
+
+    const selector = `[name="${fieldName(prefix, name)}"]`;
+    const scope = root.closest('form') || document;
+    const input = scope.querySelector(selector) || root.querySelector(selector);
+
+    if (input) {
         input.value = value;
         input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
     }
 }
 

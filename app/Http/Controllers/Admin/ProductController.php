@@ -27,8 +27,14 @@ class ProductController extends Controller
     public function index(Request $request): View
     {
         $products = Product::query()
-            ->with(['merchant', 'category', 'images', 'variants'])
-            ->when($request->input('search'), fn ($q, $s) => $q->where('name', 'like', "%{$s}%"))
+            ->with(['merchant', 'category', 'images', 'variants', 'defaultVariant'])
+            ->when($request->input('search'), function ($q, $s) {
+                $q->where(function ($inner) use ($s) {
+                    $inner->where('name', 'like', "%{$s}%")
+                        ->orWhere('sku', 'like', "%{$s}%")
+                        ->orWhereHas('variants', fn ($vq) => $vq->where('barcode', 'like', "%{$s}%")->orWhere('sku', 'like', "%{$s}%"));
+                });
+            })
             ->when($request->input('merchant_id'), fn ($q, $id) => $q->where('merchant_id', $id))
             ->when($request->input('approval_status'), fn ($q, $s) => $q->where('approval_status', $s))
             ->when($request->input('status'), fn ($q, $s) => $q->where('status', $s))

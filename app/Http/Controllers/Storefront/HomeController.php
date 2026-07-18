@@ -43,7 +43,7 @@ class HomeController extends Controller
             ->active()
             ->with([
                 'products' => fn ($q) => $q->inStock()->with([
-                    'product' => fn ($pq) => $pq->with(['images', 'merchant', 'defaultVariant'])->withAvg('reviews', 'rating'),
+                    'product' => fn ($pq) => $pq->with(['images', 'merchant', 'defaultVariant'])->withApprovedReviewStats(),
                 ]),
             ])
             ->latest('ends_at')

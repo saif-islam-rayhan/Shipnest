@@ -91,6 +91,16 @@ class Product extends Model
         return $this->hasMany(ProductReview::class);
     }
 
+    /**
+     * Eager-load average rating + count from approved reviews only.
+     */
+    public function scopeWithApprovedReviewStats($query)
+    {
+        return $query
+            ->withAvg(['reviews' => fn ($q) => $q->approved()], 'rating')
+            ->withCount(['reviews' => fn ($q) => $q->approved()]);
+    }
+
     public function questions(): HasMany
     {
         return $this->hasMany(ProductQuestion::class);

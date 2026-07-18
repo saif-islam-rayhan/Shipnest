@@ -114,9 +114,11 @@ class MerchantProductService
             $copy->save();
 
             foreach ($product->variants as $variant) {
+                $copySku = $variant->sku.'-'.strtoupper(Str::random(3));
                 $copy->variants()->create([
                     'name' => $variant->name,
-                    'sku' => $variant->sku.'-'.strtoupper(Str::random(3)),
+                    'sku' => $copySku,
+                    'barcode' => $copySku,
                     'price' => $variant->price,
                     'compare_price' => $variant->compare_price,
                     'cost_price' => $variant->cost_price,
@@ -158,6 +160,7 @@ class MerchantProductService
             $payload = [
                 'name' => $variant['name'] ?? 'Default',
                 'sku' => $variantSku,
+                'barcode' => $this->resolveBarcode($variant, $variantSku, $product),
                 'price' => $variant['price'] ?? 0,
                 'compare_price' => $variant['compare_price'] ?? null,
                 'cost_price' => $variant['cost_price'] ?? null,
@@ -186,11 +189,25 @@ class MerchantProductService
             $product->variants()->create([
                 'name' => 'Default',
                 'sku' => $product->sku,
+                'barcode' => $product->sku,
                 'price' => 0,
                 'stock' => 0,
                 'status' => 'active',
             ]);
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $variant
+     */
+    protected function resolveBarcode(array $variant, string $variantSku, Product $product): string
+    {
+        $barcode = trim((string) ($variant['barcode'] ?? ''));
+        if ($barcode === '') {
+            $barcode = $variantSku !== '' ? $variantSku : $product->sku;
+        }
+
+        return $barcode;
     }
 
     protected function syncAttributes(Product $product, array $attributes): void

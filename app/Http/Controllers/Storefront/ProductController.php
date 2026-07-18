@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Storefront;
 
+use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\Category;
@@ -70,7 +71,9 @@ class ProductController extends Controller
 
         $canReview = auth()->check() && OrderItem::query()
             ->where('product_id', $product->id)
-            ->whereHas('order', fn ($q) => $q->where('user_id', auth()->id()))
+            ->whereHas('order', fn ($q) => $q
+                ->where('user_id', auth()->id())
+                ->where('status', OrderStatus::Delivered->value))
             ->whereDoesntHave('review')
             ->exists();
 

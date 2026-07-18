@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Storefront;
 
+use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\OrderItem;
 use App\Models\Product;
@@ -32,16 +33,20 @@ class ProductReviewController extends Controller
             'rating' => ['required', 'integer', 'min:1', 'max:5'],
             'title' => ['required', 'string', 'max:255'],
             'body' => ['required', 'string', 'max:2000'],
+            'images' => ['nullable', 'array', 'max:'.ProductReview::MAX_IMAGES],
+            'images.*' => ['image', 'mimes:jpeg,jpg,png,webp', 'max:2048'],
         ]);
 
         $orderItem = OrderItem::query()
             ->where('product_id', $product->id)
-            ->whereHas('order', fn ($q) => $q->where('user_id', $request->user()->id))
+            ->whereHas('order', fn ($q) => $q
+                ->where('user_id', $request->user()->id)
+                ->where('status', OrderStatus::Delivered->value))
             ->whereDoesntHave('review')
             ->first();
 
         if (! $orderItem) {
-            return back()->with('error', 'You can only review products you have purchased.');
+            return back()->with('error', 'You can only review products after they have been delivered.');
         }
 
         ProductReview::query()->create([
@@ -51,9 +56,10 @@ class ProductReviewController extends Controller
             'rating' => $validated['rating'],
             'title' => $validated['title'],
             'body' => $validated['body'],
-            'status' => 'approved',
+            'images' => ProductReview::storeUploadedImages($request->file('images')),
+            'status' => 'pending',
         ]);
 
-        return back()->with('success', 'Thank you for your review!');
+        return back()->with('success', 'Thank you! Your review was submitted and is awaiting approval.');
     }
 }

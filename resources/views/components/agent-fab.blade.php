@@ -12,15 +12,15 @@
     $title = AgentBranding::name();
     $logoUrl = AgentBranding::logoUrl();
     $subtitle = $isAdmin
-        ? 'Product create · Image search · Cart · Market trends'
+        ? 'Product create · Review approve · Image search · Market trends'
         : 'Trusted ecommerce · Image search · Cart';
     $placeholder = $isAdmin ? 'Ask or tap mic...' : 'বলুন বা লিখুন — mic চাপুন...';
-    $chips = $isAdmin
-        ? ['create product', 'trending product ki?', 'watch']
+        $chips = $isAdmin
+        ? ['pending reviews', 'new reviews', 'create product']
         : ['hi', 'trending product ki?', 'watch', 'earbuds'];
     $welcomeTitle = $isAdmin ? 'How can I help?' : $title.'-এ স্বাগতম!';
     $welcomeText = $isAdmin
-        ? 'Product create, catalog search, cart, market research — no login required'
+        ? 'Product create, auto review alerts, approve/reject, catalog search'
         : 'বিশ্বস্ত ecommerce · Trending products · Cart-এ add (login লাগবে না)';
     $fullScreenUrl = $isAdmin ? route('admin.agent.index') : null;
 @endphp

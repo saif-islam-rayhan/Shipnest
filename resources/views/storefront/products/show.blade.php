@@ -230,7 +230,7 @@
           </div>
 
           @if($canReview)
-            <form action="{{ route('products.reviews.store', $product) }}" method="POST" class="card p-6 mb-8">
+            <form action="{{ route('products.reviews.store', $product) }}" method="POST" enctype="multipart/form-data" class="card p-6 mb-8">
               @csrf
               <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
                 <h3 class="font-semibold text-gray-900">Write a Review</h3>
@@ -258,6 +258,17 @@
                   <label class="block text-sm font-medium text-gray-700 mb-1">Review</label>
                   <textarea name="body" rows="4" required class="input-field" placeholder="Share details about the product">{{ old('body') }}</textarea>
                 </div>
+                <div class="sm:col-span-2">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Photos <span class="text-gray-400 font-normal">(optional, up to 5)</span></label>
+                  <input type="file" name="images[]" multiple accept="image/jpeg,image/png,image/webp" class="input-field">
+                  <p class="text-xs text-gray-400 mt-1">JPEG, PNG or WebP — max 2MB each</p>
+                  @error('images')
+                    <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+                  @enderror
+                  @error('images.*')
+                    <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+                  @enderror
+                </div>
               </div>
               <button type="submit" class="btn-primary mt-4">Submit Review</button>
             </form>
@@ -274,6 +285,15 @@
                   @endif
                 </div>
                 <p class="text-sm text-gray-600">{{ $review->body }}</p>
+                @if($review->image_urls)
+                  <div class="flex flex-wrap gap-2 mt-3">
+                    @foreach($review->image_urls as $url)
+                      <a href="{{ $url }}" target="_blank" rel="noopener" class="block w-20 h-20 rounded-lg overflow-hidden bg-gray-100 ring-1 ring-gray-200">
+                        <img src="{{ $url }}" alt="Review photo" class="w-full h-full object-cover">
+                      </a>
+                    @endforeach
+                  </div>
+                @endif
                 <p class="text-xs text-gray-400 mt-2">{{ $review->user->name }} · {{ $review->created_at->format('M d, Y') }}</p>
               </div>
             @empty

@@ -8,6 +8,7 @@ use App\Models\ChatMessage;
 use App\Models\Product;
 use App\Services\CartService;
 use App\Services\Market\AdminProductCreateAgent;
+use App\Services\Market\AdminReviewModerationAgent;
 use App\Services\Market\DemandChatAgent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -27,7 +28,10 @@ class ChatAgentController extends Controller
         return view('admin.agent.index', [
             'session' => $session,
             'messages' => $messages,
-            'defaultFollowUps' => AdminProductCreateAgent::exampleFollowUps(),
+            'defaultFollowUps' => array_merge(
+                AdminReviewModerationAgent::exampleFollowUps(),
+                AdminProductCreateAgent::exampleFollowUps(),
+            ),
         ]);
     }
 

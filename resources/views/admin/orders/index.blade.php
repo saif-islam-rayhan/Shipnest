@@ -23,7 +23,7 @@
     </select>
     <select name="payment_method" class="input-field w-32">
         <option value="">Payment</option>
-        @foreach(['cod', 'bkash', 'nagad', 'sslcommerz', 'stripe'] as $m)
+        @foreach(['cod', 'cash', 'bkash', 'nagad', 'sslcommerz', 'stripe'] as $m)
             <option value="{{ $m }}" @selected(request('payment_method') === $m)>{{ strtoupper($m) }}</option>
         @endforeach
     </select>

@@ -37,10 +37,11 @@
 
 <div class="admin-card">
     <div class="overflow-x-auto">
-        <table class="admin-datatable admin-table">
+        <table class="admin-table">
             <thead>
                 <tr>
                     <th>Product</th>
+                    <th>Barcode</th>
                     <th>Merchant</th>
                     <th>Price</th>
                     <th>Discount</th>
@@ -59,8 +60,25 @@
                                 @else
                                     <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs text-gray-400">—</div>
                                 @endif
-                                <span class="font-medium text-gray-900">{{ $p->name }}</span>
+                                <div>
+                                    <span class="font-medium text-gray-900">{{ $p->name }}</span>
+                                    <div class="text-xs text-gray-400">SKU: {{ $p->sku ?? '—' }}</div>
+                                </div>
                             </div>
+                        </td>
+                        <td>
+                            @php
+                                $barcode = $p->defaultVariant?->barcode
+                                    ?? $p->variants->first()?->barcode
+                                    ?? $p->sku;
+                            @endphp
+                            @if($barcode)
+                                <div class="inline-flex flex-col items-start gap-0.5 rounded border border-slate-200 bg-white p-1.5">
+                                    <svg class="jsbarcode" data-barcode="{{ $barcode }}"></svg>
+                                </div>
+                            @else
+                                <span class="text-gray-400">—</span>
+                            @endif
                         </td>
                         <td class="text-gray-600">{{ $p->merchant?->shop_name ?? '—' }}</td>
                         <td class="font-medium text-gray-900">{{ config('shipnest.currency_symbol') }}{{ number_format($p->price) }}</td>
@@ -112,7 +130,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7" class="admin-empty">No products found. <a href="{{ route('admin.products.create') }}" class="admin-link">Add your first product</a></td>
+                        <td colspan="8" class="admin-empty">No products found. <a href="{{ route('admin.products.create') }}" class="admin-link">Add your first product</a></td>
                     </tr>
                 @endforelse
             </tbody>
@@ -124,3 +142,30 @@
     <div class="mt-4">{{ $products->links() }}</div>
 @endif
 @endsection
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script>
+document.querySelectorAll('svg.jsbarcode[data-barcode]').forEach((el) => {
+    const value = el.getAttribute('data-barcode');
+    if (!value) return;
+    try {
+        JsBarcode(el, value, {
+            format: 'CODE128',
+            width: 1.4,
+            height: 40,
+            displayValue: true,
+            fontSize: 11,
+            margin: 2,
+            background: '#ffffff',
+            lineColor: '#0f172a',
+        });
+    } catch (e) {
+        el.replaceWith(Object.assign(document.createElement('span'), {
+            className: 'font-mono text-xs text-slate-600',
+            textContent: value,
+        }));
+    }
+});
+</script>
+@endpush

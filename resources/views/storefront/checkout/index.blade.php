@@ -3,6 +3,7 @@
     $checkoutConfig = [
         'step' => 1,
         'useNewAddress' => $addresses->isEmpty(),
+        'addressEntryMode' => (old('new_address.latitude') || old('new_address.longitude')) ? 'map' : 'manual',
         'shippingMethod' => old('shipping_method', 'standard'),
         'paymentMethod' => old('payment_method', 'cod'),
         'paymentReference' => old('payment_reference', ''),
@@ -62,7 +63,7 @@
                 </label>
               @endforeach
             </div>
-            <button type="button" @click="useNewAddress = !useNewAddress; if (useNewAddress) { setTimeout(() => window.dispatchEvent(new Event('map-picker-resize')), 300) }" class="text-xs text-primary hover:underline mb-3">
+            <button type="button" @click="useNewAddress = !useNewAddress; if (useNewAddress && addressEntryMode === 'map') { setTimeout(() => window.dispatchEvent(new Event('map-picker-resize')), 300) }" class="text-xs text-primary hover:underline mb-3">
               + {{ __('messages.add_new_address') }}
             </button>
           @endif
@@ -80,6 +81,33 @@
               <label class="block text-xs font-medium text-gray-700 mb-1">Postal Code</label>
               <input type="text" name="new_address[postal_code]" value="{{ old('new_address.postal_code') }}" class="input-field">
             </div>
+
+            <div class="sm:col-span-2">
+              <div class="flex rounded-md border border-gray-200 p-0.5 bg-gray-50" role="group" aria-label="{{ __('messages.delivery_address') }}">
+                <button type="button"
+                  @click="setAddressEntryMode('manual')"
+                  class="flex-1 text-xs font-medium py-2 px-3 rounded transition-colors"
+                  :class="addressEntryMode === 'manual' ? 'bg-white text-primary shadow-sm' : 'text-gray-600 hover:text-gray-900'">
+                  {{ __('messages.address_entry_manual') }}
+                </button>
+                <button type="button"
+                  @click="setAddressEntryMode('map')"
+                  class="flex-1 text-xs font-medium py-2 px-3 rounded transition-colors"
+                  :class="addressEntryMode === 'map' ? 'bg-white text-primary shadow-sm' : 'text-gray-600 hover:text-gray-900'">
+                  {{ __('messages.address_entry_map') }}
+                </button>
+              </div>
+              <p class="text-xs text-gray-500 mt-1.5" x-text="addressEntryMode === 'map' ? @js(__('messages.address_entry_hint_map')) : @js(__('messages.address_entry_hint_manual'))"></p>
+            </div>
+
+            <div class="sm:col-span-2" x-show="addressEntryMode === 'map'" x-cloak>
+              <x-map-address-picker
+                prefix="new_address"
+                :latitude="old('new_address.latitude')"
+                :longitude="old('new_address.longitude')"
+              />
+            </div>
+
             <div class="sm:col-span-2">
               <label class="block text-xs font-medium text-gray-700 mb-1">Address</label>
               <input type="text" name="new_address[address_line1]" value="{{ old('new_address.address_line1') }}" class="input-field" placeholder="House, road, area" :required="useNewAddress || {{ $addresses->isEmpty() ? 'true' : 'false' }}">
@@ -96,11 +124,7 @@
               <label class="block text-xs font-medium text-gray-700 mb-1">City</label>
               <input type="text" name="new_address[city]" value="{{ old('new_address.city', 'Dhaka') }}" class="input-field" :required="useNewAddress || {{ $addresses->isEmpty() ? 'true' : 'false' }}">
             </div>
-            <x-map-address-picker
-              prefix="new_address"
-              :latitude="old('new_address.latitude')"
-              :longitude="old('new_address.longitude')"
-            />
+
             <div class="sm:col-span-2">
               <label class="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" name="new_address[is_default]" value="1" class="rounded text-primary focus:ring-primary">

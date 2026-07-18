@@ -11,6 +11,8 @@ class QueryIntent
     public const GENERAL_QA = 'general_qa';
 
     public const PRODUCT_CREATE = 'product_create';
+
+    public const REVIEW_MODERATION = 'review_moderation';
 }
 
 class QueryIntentClassifier
@@ -34,6 +36,13 @@ class QueryIntentClassifier
         'প্রোডাক্ট তৈরি', 'পণ্য তৈরি', 'নতুন প্রোডাক্ট', 'product add koro', 'product create koro',
     ];
 
+    private const REVIEW_KW = [
+        'pending reviews', 'pending review', 'review check', 'check reviews',
+        'approve reviews', 'review moderation', 'moderate reviews', 'reviews pending',
+        'new reviews', 'new review', 'review notification', 'review notifications',
+        'রিভিউ চেক', 'পেন্ডিং রিভিউ', 'রিভিউ দেখো', 'নতুন রিভিউ',
+    ];
+
     public function isProductCreateIntent(string $message): bool
     {
         $lower = strtolower(trim($message));
@@ -47,8 +56,31 @@ class QueryIntentClassifier
         return (bool) preg_match('/\b(create|add|তৈরি)\b.*\b(product|প্রোডাক্ট|পণ্য)\b/ui', $message);
     }
 
+    public function isReviewModerationIntent(string $message): bool
+    {
+        $lower = strtolower(trim($message));
+
+        foreach (self::REVIEW_KW as $kw) {
+            if (str_contains($lower, $kw)) {
+                return true;
+            }
+        }
+
+        return (bool) preg_match(
+            '/\b(pending|check|moderate|approve|new|summary)\b.*\b(review|reviews|রিভিউ)\b/ui',
+            $message,
+        ) || (bool) preg_match(
+            '/\b(review|reviews|রিভিউ)\b.*\b(pending|check|moderate|approve|new|notification|summary)\b/ui',
+            $message,
+        );
+    }
+
     public function classify(string $message, CompositeQuery $parsed): string
     {
+        if ($this->isReviewModerationIntent($message)) {
+            return QueryIntent::REVIEW_MODERATION;
+        }
+
         if ($this->isGeneralKnowledge($message, $parsed)) {
             return QueryIntent::GENERAL_QA;
         }
@@ -167,7 +199,7 @@ class QueryIntentClassifier
             return false;
         }
 
-        if (preg_match('/\b(help|cancel|cart|order|checkout|trending|create\s+product|view\s+cart)\b/ui', $normalized)) {
+        if (preg_match('/\b(help|cancel|cart|order|checkout|trending|create\s+product|view\s+cart|pending\s+reviews?|new\s+reviews?|review\s+check)\b/ui', $normalized)) {
             return false;
         }
 
@@ -248,6 +280,7 @@ class QueryIntentClassifier
             QueryIntent::PLATFORM_SEARCH => 'Product search (ShipNest catalog)',
             QueryIntent::MARKET_ANALYSIS => 'Market analysis / trending research',
             QueryIntent::PRODUCT_CREATE => 'Admin product creation',
+            QueryIntent::REVIEW_MODERATION => 'Admin review moderation',
             QueryIntent::GENERAL_QA => 'General Q&A',
             default => 'General Q&A',
         };

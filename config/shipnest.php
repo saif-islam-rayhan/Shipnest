@@ -103,4 +103,17 @@ return [
         'logo' => null,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Point of Sale (Admin)
+    |--------------------------------------------------------------------------
+    */
+
+    'pos' => [
+        'tax_rate' => (float) env('SHIPNEST_POS_TAX_RATE', 15),
+        'branch_name' => env('SHIPNEST_POS_BRANCH', 'Main Outlet'),
+        'counter' => env('SHIPNEST_POS_COUNTER', '01'),
+        'walk_in_email' => env('SHIPNEST_POS_WALK_IN_EMAIL', 'walkin@shipnest.local'),
+    ],
+
 ];

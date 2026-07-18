@@ -44,6 +44,10 @@ class ReviewController extends Controller
             abort(403);
         }
 
+        if ($item->order->status !== OrderStatus::Delivered) {
+            return back()->with('error', 'You can only review after the product is delivered.');
+        }
+
         if ($item->review) {
             return back()->with('error', 'You have already reviewed this item.');
         }
@@ -55,11 +59,12 @@ class ReviewController extends Controller
             'rating' => $request->validated('rating'),
             'title' => $request->validated('title'),
             'body' => $request->validated('body'),
-            'status' => 'approved',
+            'images' => ProductReview::storeUploadedImages($request->file('images')),
+            'status' => 'pending',
         ]);
 
         return redirect()
             ->route('account.reviews.index')
-            ->with('success', 'Thank you for your review!');
+            ->with('success', 'Thank you! Your review was submitted and is awaiting approval.');
     }
 }

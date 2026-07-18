@@ -14,11 +14,14 @@ use App\Http\Controllers\Admin\ChatAgentController as AdminChatAgentController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\FinanceController as AdminFinanceController;
 use App\Http\Controllers\Admin\MerchantController as AdminMerchantController;
+use App\Http\Controllers\Admin\NotificationController as AdminNotificationController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\PageController as AdminPageController;
 use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
+use App\Http\Controllers\Admin\PosController as AdminPosController;
 use App\Http\Controllers\Admin\ProductController as AdminProductController;
 use App\Http\Controllers\Admin\PromotionController as AdminPromotionController;
+use App\Http\Controllers\Admin\ReviewController as AdminReviewController;
 use App\Http\Controllers\Admin\SettingController as AdminSettingController;
 use App\Http\Controllers\Admin\TwoFactorController as AdminTwoFactorController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
@@ -208,6 +211,15 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'active', 'role:supe
     Route::patch('/disputes/{dispute}', [AdminOrderController::class, 'resolveDispute'])->name('disputes.resolve');
     Route::post('/orders/{order}/refund', [AdminOrderController::class, 'refund'])->name('orders.refund');
 
+    Route::get('/pos', [AdminPosController::class, 'index'])->name('pos.index');
+    Route::get('/pos/products', [AdminPosController::class, 'products'])->name('pos.products');
+    Route::get('/pos/scan', [AdminPosController::class, 'scan'])->name('pos.scan');
+    Route::get('/pos/customers', [AdminPosController::class, 'customers'])->name('pos.customers');
+    Route::post('/pos/checkout', [AdminPosController::class, 'checkout'])->name('pos.checkout');
+    Route::get('/pos/held', [AdminPosController::class, 'held'])->name('pos.held');
+    Route::post('/pos/held', [AdminPosController::class, 'hold'])->name('pos.hold');
+    Route::delete('/pos/held/{id}', [AdminPosController::class, 'deleteHeld'])->name('pos.held.destroy');
+
     Route::get('/categories', [AdminCategoryController::class, 'index'])->name('categories.index');
     Route::post('/categories', [AdminCategoryController::class, 'store'])->name('categories.store');
     Route::put('/categories/{category}', [AdminCategoryController::class, 'update'])->name('categories.update');
@@ -245,6 +257,14 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'active', 'role:supe
     Route::get('/payments', [AdminPaymentController::class, 'index'])->name('payments.index');
     Route::patch('/payments/{payment}/approve', [AdminPaymentController::class, 'approve'])->name('payments.approve');
     Route::post('/payments/{payment}/reject', [AdminPaymentController::class, 'reject'])->name('payments.reject');
+
+    Route::get('/reviews', [AdminReviewController::class, 'index'])->name('reviews.index');
+    Route::patch('/reviews/{review}/approve', [AdminReviewController::class, 'approve'])->name('reviews.approve');
+    Route::patch('/reviews/{review}/reject', [AdminReviewController::class, 'reject'])->name('reviews.reject');
+
+    Route::get('/notifications', [AdminNotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/read-all', [AdminNotificationController::class, 'markAllRead'])->name('notifications.read-all');
+    Route::get('/notifications/{notification}/read', [AdminNotificationController::class, 'markRead'])->name('notifications.read');
 
     Route::get('/settings', [AdminSettingController::class, 'edit'])->name('settings.edit');
     Route::put('/settings', [AdminSettingController::class, 'update'])->name('settings.update');

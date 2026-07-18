@@ -34,7 +34,7 @@ class CheckoutRequest extends FormRequest
             'new_address.label' => ['nullable', 'string', 'max:50'],
             'new_address.is_default' => ['nullable', 'boolean'],
             'shipping_method' => ['required', 'string', Rule::in(array_keys(config('shipping.methods', [])))],
-            'payment_method' => ['required', Rule::enum(PaymentMethod::class)],
+            'payment_method' => ['required', Rule::enum(PaymentMethod::class)->except([PaymentMethod::Cash])],
             'cod_shipping_payment' => ['nullable', Rule::in(['bkash', 'nagad'])],
             'payment_reference' => ['nullable', 'string', 'max:100'],
             'notes' => ['nullable', 'string', 'max:500'],

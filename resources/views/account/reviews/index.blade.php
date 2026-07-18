@@ -15,7 +15,7 @@
                         <div class="flex-1">
                             <p class="font-medium text-gray-900">{{ $item->product_name }}</p>
                             <p class="text-xs text-gray-500">Order #{{ $item->order->order_number }}</p>
-                            <form action="{{ route('account.reviews.store') }}" method="POST" class="mt-3 space-y-3">
+                            <form action="{{ route('account.reviews.store') }}" method="POST" enctype="multipart/form-data" class="mt-3 space-y-3">
                                 @csrf
                                 <input type="hidden" name="order_item_id" value="{{ $item->id }}">
                                 <div class="flex flex-wrap items-center justify-between gap-2">
@@ -40,6 +40,11 @@
                                 <div>
                                     <textarea name="body" rows="2" placeholder="Write your review..." class="input-field" required></textarea>
                                 </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Photos <span class="text-gray-400 font-normal">(optional, up to 5)</span></label>
+                                    <input type="file" name="images[]" multiple accept="image/jpeg,image/png,image/webp" class="input-field">
+                                    <p class="text-xs text-gray-400 mt-1">JPEG, PNG or WebP — max 2MB each</p>
+                                </div>
                                 <button type="submit" class="btn-primary text-sm">Submit Review</button>
                             </form>
                         </div>
@@ -59,12 +64,36 @@
                     <div class="p-4">
                         <div class="flex items-start justify-between gap-4">
                             <div>
-                                <p class="font-medium text-gray-900">{{ $review->title }}</p>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <p class="font-medium text-gray-900">{{ $review->title }}</p>
+                                    @php
+                                        $badge = match ($review->status) {
+                                            'approved' => 'bg-green-100 text-green-700',
+                                            'rejected' => 'bg-red-100 text-red-700',
+                                            default => 'bg-amber-100 text-amber-700',
+                                        };
+                                        $label = match ($review->status) {
+                                            'approved' => 'Approved',
+                                            'rejected' => 'Rejected',
+                                            default => 'Pending approval',
+                                        };
+                                    @endphp
+                                    <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {{ $badge }}">{{ $label }}</span>
+                                </div>
                                 <p class="text-sm text-gray-500">{{ $review->product->name ?? 'Product' }} · {{ $review->created_at->format('M d, Y') }}</p>
                             </div>
                             <x-rating-stars :rating="$review->rating" size="sm" />
                         </div>
                         <p class="text-sm text-gray-600 mt-2">{{ $review->body }}</p>
+                        @if($review->image_urls)
+                            <div class="flex flex-wrap gap-2 mt-3">
+                                @foreach($review->image_urls as $url)
+                                    <a href="{{ $url }}" target="_blank" rel="noopener" class="block w-16 h-16 rounded-lg overflow-hidden bg-gray-100 ring-1 ring-gray-200">
+                                        <img src="{{ $url }}" alt="Review photo" class="w-full h-full object-cover">
+                                    </a>
+                                @endforeach
+                            </div>
+                        @endif
                     </div>
                 @endforeach
             </div>

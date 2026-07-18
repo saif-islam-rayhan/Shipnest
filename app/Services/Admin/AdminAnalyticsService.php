@@ -5,6 +5,7 @@ namespace App\Services\Admin;
 use App\Models\Merchant;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\ProductReview;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -46,8 +47,10 @@ class AdminAnalyticsService
             'active_products' => Product::query()->where('status', 'active')->count(),
             'pending_merchants' => Merchant::query()->where('status', 'pending')->count(),
             'pending_products' => Product::query()->where('approval_status', 'pending')->count(),
+            'pending_reviews' => ProductReview::query()->pending()->count(),
             'pending_approvals' => Merchant::query()->where('status', 'pending')->count()
-                + Product::query()->where('approval_status', 'pending')->count(),
+                + Product::query()->where('approval_status', 'pending')->count()
+                + ProductReview::query()->pending()->count(),
             'pending_orders' => Order::query()->where('status', 'pending')->count(),
         ];
     }

@@ -80,6 +80,7 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('checkoutWizard', (config = {}) => ({
         step: config.step ?? 1,
         useNewAddress: config.useNewAddress ?? false,
+        addressEntryMode: config.addressEntryMode ?? 'manual',
         shippingMethod: config.shippingMethod ?? 'standard',
         paymentMethod: config.paymentMethod ?? 'cod',
         paymentReference: config.paymentReference ?? '',
@@ -96,6 +97,12 @@ document.addEventListener('alpine:init', () => {
         },
         dueOnDelivery() {
             return Math.max(0, this.subtotal - this.discount + this.shipping);
+        },
+        setAddressEntryMode(mode) {
+            this.addressEntryMode = mode;
+            if (mode === 'map') {
+                setTimeout(() => window.dispatchEvent(new Event('map-picker-resize')), 300);
+            }
         },
         updateShipping(key, rate) {
             this.shipping = (this.freeShippingEnabled && this.subtotal >= this.freeShippingThreshold) ? 0 : rate;

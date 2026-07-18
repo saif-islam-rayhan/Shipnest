@@ -1,7 +1,10 @@
 @php
     $pendingMerchants = \App\Models\Merchant::query()->where('status', 'pending')->count();
     $pendingProducts = \App\Models\Product::query()->where('approval_status', 'pending')->count();
-    $pendingCount = $pendingMerchants + $pendingProducts;
+    $pendingReviews = \App\Models\ProductReview::query()->pending()->count();
+    $pendingCount = $pendingMerchants + $pendingProducts + $pendingReviews;
+    $agentNotifications = auth()->user()->notifications()->latest()->limit(8)->get();
+    $unreadNotifications = auth()->user()->notifications()->unread()->count();
 @endphp
 <header class="admin-topbar sticky top-0 z-30 flex h-16 items-center gap-3 px-4 lg:px-6">
     <button type="button" class="admin-icon-btn lg:hidden" @click="mobileSidebar = !mobileSidebar" title="Menu">
@@ -27,8 +30,50 @@
         <a href="{{ route('home') }}" target="_blank" class="admin-icon-btn hidden sm:inline-flex" title="View storefront">
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
         </a>
+
+        <div class="relative" x-data="{ open: false }">
+            <button type="button" @click="open = !open" class="admin-icon-btn relative" title="Notifications">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                @if($unreadNotifications > 0)
+                    <span class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#F57C00] px-1 text-[10px] font-bold text-white">{{ $unreadNotifications > 9 ? '9+' : $unreadNotifications }}</span>
+                @endif
+            </button>
+            <div x-show="open" @click.outside="open = false" x-cloak x-transition
+                 class="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-xl bg-white shadow-xl ring-1 ring-gray-100 sm:w-96">
+                <div class="flex items-center justify-between border-b border-gray-100 px-4 py-2.5">
+                    <p class="text-sm font-semibold text-gray-900">Notifications</p>
+                    @if($unreadNotifications > 0)
+                        <form action="{{ route('admin.notifications.read-all') }}" method="POST">
+                            @csrf
+                            <button type="submit" class="text-xs text-[#F57C00] hover:underline">Mark all read</button>
+                        </form>
+                    @endif
+                </div>
+                <div class="max-h-80 overflow-y-auto divide-y divide-gray-50">
+                    @forelse($agentNotifications as $notification)
+                        <a href="{{ route('admin.notifications.read', $notification) }}"
+                           class="block px-4 py-3 hover:bg-gray-50 {{ $notification->read_at ? 'opacity-70' : '' }}">
+                            <div class="flex items-start justify-between gap-2">
+                                <p class="text-sm font-medium text-gray-900 line-clamp-1">{{ $notification->title }}</p>
+                                @unless($notification->read_at)
+                                    <span class="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#F57C00]"></span>
+                                @endunless
+                            </div>
+                            <p class="mt-0.5 text-xs text-gray-600 line-clamp-2">{{ $notification->body }}</p>
+                            <p class="mt-1 text-[11px] text-gray-400">{{ $notification->created_at->diffForHumans() }}</p>
+                        </a>
+                    @empty
+                        <p class="px-4 py-8 text-center text-sm text-gray-500">No notifications yet.</p>
+                    @endforelse
+                </div>
+                <a href="{{ route('admin.notifications.index') }}" class="block border-t border-gray-100 px-4 py-2.5 text-center text-xs font-medium text-[#F57C00] hover:bg-orange-50">
+                    View all
+                </a>
+            </div>
+        </div>
+
         <a href="{{ route('admin.merchants.index', ['tab' => 'pending']) }}" class="admin-icon-btn relative" title="Pending approvals">
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             @if($pendingCount > 0)
                 <span class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#F57C00] px-1 text-[10px] font-bold text-white">{{ $pendingCount > 9 ? '9+' : $pendingCount }}</span>
             @endif

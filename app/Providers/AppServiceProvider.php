@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Contracts\SmsServiceInterface;
 use App\Models\Category;
+use App\Models\ProductReview;
+use App\Observers\ProductReviewObserver;
 use App\Services\CartService;
 use App\Services\DynamicConfigService;
 use App\Services\Sms\MockSmsService;
@@ -11,6 +13,7 @@ use App\Services\Sms\TwilioSmsService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -28,6 +31,10 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        if ($this->app->environment('production')) {
+            URL::forceScheme('https');
+        }
+
         try {
             app(DynamicConfigService::class)->apply();
         } catch (\Throwable) {
@@ -35,6 +42,8 @@ class AppServiceProvider extends ServiceProvider
         }
 
         Event::listen(Registered::class, SendEmailVerificationNotification::class);
+
+        ProductReview::observe(ProductReviewObserver::class);
 
         View::composer('layouts.frontend', function ($view) {
             $view->with('navCategories', Category::query()

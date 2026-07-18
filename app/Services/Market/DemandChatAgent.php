@@ -10,7 +10,7 @@ use Illuminate\Http\UploadedFile;
 
 class DemandChatAgent
 {
-    private const CANCEL_KW = ['cancel', 'বাতিল', 'reset', 'নতুন', 'new', 'start over'];
+    private const CANCEL_KW = ['cancel', 'বাতিল', 'reset', 'start over', 'নতুন করে'];
 
     private const CART_ADD_KW = [
         'cart a add', 'add to cart', 'cart e add', 'cart-e add', 'cart add',
@@ -39,6 +39,7 @@ class DemandChatAgent
         private GoogleQaAgent $qaAgent,
         private PlatformProductAgent $platformAgent,
         private AdminProductCreateAgent $productCreateAgent,
+        private AdminReviewModerationAgent $reviewModerationAgent,
         private QueryIntentClassifier $intentClassifier,
         private InputParsers $inputParsers,
         private GooglePeriodParser $periodParser,
@@ -86,7 +87,7 @@ class DemandChatAgent
         if ($msg === '') {
             return AgentResponseBuilder::make(
                 $this->agentEmptyPrompt($adminPanel),
-                ['follow_ups' => $this->agentFollowUps()],
+                ['follow_ups' => $this->agentFollowUps($adminPanel)],
             );
         }
 
@@ -106,16 +107,35 @@ class DemandChatAgent
         foreach (self::CANCEL_KW as $kw) {
             if (str_contains($lower, $kw)) {
                 $this->productCreateAgent->resetProductCreate($session);
+                $this->reviewModerationAgent->reset($session);
                 $this->resetSession($session);
 
                 return AgentResponseBuilder::make(
                     '✅ Reset হয়েছে। নতুন প্রশ্ন লিখুন।',
                     [
                         'type' => 'system',
-                        'follow_ups' => $this->agentFollowUps(),
+                        'follow_ups' => $this->agentFollowUps($adminPanel),
                     ],
                 );
             }
+        }
+
+        if ($this->reviewModerationAgent->isReviewStep($session->step)) {
+            if (! $adminPanel) {
+                return AgentResponseBuilder::make(
+                    '⚠️ Review moderation শুধুমাত্র **Admin panel** থেকে করা যায়।',
+                    ['type' => 'error', 'follow_ups' => ['watch', 'trending product ki?']],
+                );
+            }
+
+            return $this->reviewModerationAgent->handle($session, $msg);
+        }
+
+        if ($adminPanel && (
+            $this->reviewModerationAgent->isReviewIntent($msg)
+            || $this->intentClassifier->isReviewModerationIntent($msg)
+        )) {
+            return $this->delegateReviewModeration($session, $msg);
         }
 
         if ($this->productCreateAgent->isProductCreateStep($session->step)) {
@@ -163,7 +183,7 @@ class DemandChatAgent
         if (in_array($lower, ['help', 'সাহায্য'], true)) {
             return AgentResponseBuilder::make(
                 $this->agentHelpMessage($adminPanel),
-                ['follow_ups' => $this->agentFollowUps()],
+                ['follow_ups' => $this->agentFollowUps($adminPanel)],
             );
         }
 
@@ -185,6 +205,9 @@ class DemandChatAgent
             $intent = $this->intentClassifier->classify($msg, $parsed);
             if ($intent === QueryIntent::PRODUCT_CREATE) {
                 return $this->delegateProductCreate($session, $msg, $adminPanel, $uploadedImages, $productId);
+            }
+            if ($intent === QueryIntent::REVIEW_MODERATION) {
+                return $this->delegateReviewModeration($session, $msg, $adminPanel);
             }
             if ($intent === QueryIntent::PLATFORM_SEARCH) {
                 return $this->platformAgent->search($msg, $parsed);
@@ -209,6 +232,10 @@ class DemandChatAgent
 
         if ($intent === QueryIntent::PRODUCT_CREATE) {
             return $this->delegateProductCreate($session, $msg, $adminPanel, $uploadedImages, $productId);
+        }
+
+        if ($intent === QueryIntent::REVIEW_MODERATION) {
+            return $this->delegateReviewModeration($session, $msg, $adminPanel);
         }
 
         // Product name always wins — even mid trending wizard (e.g. user types "smart watch")
@@ -1037,13 +1064,14 @@ class DemandChatAgent
     private function agentEmptyPrompt(bool $adminPanel): string
     {
         $cartHint = $adminPanel ? '' : "\n• Product select → `cart a add koro` — cart-এ যোগ";
+        $reviewHint = $adminPanel ? "\n• `pending reviews` — Approve / Reject\n• `new reviews` — agent-এর Positive/Negative summary" : '';
         $name = $this->agentName();
 
         return <<<PROMPT
 🛠️ **{$name}**
 
 সরাসরি কাজ করুন:
-• `create product` — নতুন product তৈরি
+• `create product` — নতুন product তৈরি{$reviewHint}
 • 📷 Product image upload — catalog-এ আছে কিনা খুঁজুন
 • `watch` / `kurti` — catalog search
 • `trending product ki?` — ShipNest trending + cart{$cartHint}
@@ -1062,6 +1090,14 @@ PROMPT;
 • `checkout`
 CART;
 
+        $reviewSection = $adminPanel ? <<<'REVIEW'
+
+**Review moderation:**
+• Review submit → agent text + image (যদি থাকে) analyze করে Positive/Negative বলে + notification
+• `new reviews` — agent inbox summary
+• `pending reviews` — একটা একটা করে **Approve** / **Reject**
+REVIEW : '';
+
         $name = $this->agentName();
 
         return <<<HELP
@@ -1071,7 +1107,7 @@ CART;
 • `create product`
 • `create product: merchant: Shop, name: Smart Watch, category: Electronics, price: 2500, stock: 50`
 • `attributes: Color: Black, Size: M`
-
+{$reviewSection}
 **Catalog & research:**
 • 📷 Product image upload — catalog search (আছে কিনা + related products)
 • `watch` / `earbuds` — ShipNest catalog search
@@ -1085,8 +1121,16 @@ HELP;
     /**
      * @return array<int, string>
      */
-    private function agentFollowUps(): array
+    private function agentFollowUps(bool $adminPanel = false): array
     {
+        if ($adminPanel) {
+            return [
+                'pending reviews',
+                'new reviews',
+                'create product',
+            ];
+        }
+
         return [
             'create product',
             'watch',
@@ -1263,10 +1307,34 @@ PROMPT;
         }
 
         if ($session->step !== 'idle' && ! $this->productCreateAgent->isProductCreateStep($session->step)) {
+            $this->reviewModerationAgent->reset($session);
             $this->resetSession($session);
         }
 
         return $this->productCreateAgent->handle($session, $msg, $uploadedImages, $productId);
+    }
+
+    /**
+     * @return array{content: string, meta: array<string, mixed>}
+     */
+    private function delegateReviewModeration(
+        ChatSession $session,
+        string $msg,
+        bool $adminPanel = true,
+    ): array {
+        if (! $adminPanel) {
+            return AgentResponseBuilder::make(
+                '⚠️ Review moderation শুধুমাত্র **Admin panel** থেকে করা যায়।',
+                ['type' => 'error', 'follow_ups' => ['watch', 'trending product ki?']],
+            );
+        }
+
+        if ($session->step !== 'idle' && ! $this->reviewModerationAgent->isReviewStep($session->step)) {
+            $this->productCreateAgent->resetProductCreate($session);
+            $this->resetSession($session);
+        }
+
+        return $this->reviewModerationAgent->handle($session, $msg);
     }
 
     private function agentName(): string

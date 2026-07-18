@@ -48,7 +48,7 @@ class ProductService
     {
         return Product::query()
             ->with(['images', 'merchant', 'category', 'brand', 'defaultVariant'])
-            ->withAvg('reviews', 'rating')
+            ->withApprovedReviewStats()
             ->active()
             ->inStock()
             ->featured()
@@ -61,7 +61,7 @@ class ProductService
     {
         return Product::query()
             ->with(['images', 'merchant', 'category', 'brand', 'defaultVariant'])
-            ->withAvg('reviews', 'rating')
+            ->withApprovedReviewStats()
             ->active()
             ->inStock()
             ->latest()
@@ -80,7 +80,7 @@ class ProductService
     {
         return Product::query()
             ->with(['images', 'merchant', 'category', 'brand', 'defaultVariant'])
-            ->withAvg('reviews', 'rating')
+            ->withApprovedReviewStats()
             ->active()
             ->inStock()
             ->where('merchant_id', $merchantId)
@@ -104,8 +104,8 @@ class ProductService
                 'reviews' => fn ($q) => $q->approved()->with('user')->latest(),
                 'questions' => fn ($q) => $q->visible()->with(['user', 'answeredByUser'])->latest(),
             ])
-            ->withAvg('reviews', 'rating')
-            ->withCount(['reviews', 'questions'])
+            ->withApprovedReviewStats()
+            ->withCount('questions')
             ->withSum('orderItems as order_items_sum_quantity', 'quantity')
             ->where('slug', $slug)
             ->active()
@@ -170,7 +170,7 @@ class ProductService
     ): LengthAwarePaginator {
         $builder = Product::query()
             ->with(['images', 'merchant', 'category', 'brand', 'defaultVariant'])
-            ->withAvg('reviews', 'rating')
+            ->withApprovedReviewStats()
             ->active()
             ->inStock();
 
@@ -235,8 +235,7 @@ class ProductService
 
         $builder = Product::query()
             ->with(['images', 'merchant', 'category', 'brand', 'defaultVariant'])
-            ->withAvg('reviews', 'rating')
-            ->withCount('reviews')
+            ->withApprovedReviewStats()
             ->active()
             ->inStock();
 
@@ -455,8 +454,7 @@ class ProductService
     {
         $builder = Product::query()
             ->with(['images', 'merchant', 'category', 'brand', 'defaultVariant'])
-            ->withAvg('reviews', 'rating')
-            ->withCount('reviews')
+            ->withApprovedReviewStats()
             ->active()
             ->inStock();
 
@@ -624,8 +622,7 @@ class ProductService
 
         $builder = Product::query()
             ->with(['images', 'merchant', 'category', 'brand', 'defaultVariant'])
-            ->withAvg('reviews', 'rating')
-            ->withCount('reviews')
+            ->withApprovedReviewStats()
             ->active()
             ->inStock();
 

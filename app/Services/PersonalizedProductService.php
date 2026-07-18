@@ -65,7 +65,7 @@ class PersonalizedProductService
     {
         return Product::query()
             ->with(['images', 'merchant', 'defaultVariant'])
-            ->withAvg('reviews', 'rating')
+            ->withApprovedReviewStats()
             ->active()
             ->inStock()
             ->when($excludeIds !== [], fn (Builder $q) => $q->whereNotIn('id', $excludeIds))

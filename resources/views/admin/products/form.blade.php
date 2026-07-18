@@ -4,9 +4,9 @@
 @section('content')
 @php
     $variants = old('variants', $product->exists ? $product->variants->map(fn($v) => [
-        'id' => $v->id, 'name' => $v->name, 'sku' => $v->sku, 'price' => $v->price,
-        'compare_price' => $v->compare_price, 'stock' => $v->stock, 'weight' => $v->weight,
-    ])->toArray() : [['name' => 'Default', 'sku' => '', 'price' => '', 'compare_price' => '', 'stock' => 0, 'weight' => '']]);
+        'id' => $v->id, 'name' => $v->name, 'sku' => $v->sku, 'barcode' => $v->barcode,
+        'price' => $v->price, 'compare_price' => $v->compare_price, 'stock' => $v->stock, 'weight' => $v->weight,
+    ])->toArray() : [['name' => 'Default', 'sku' => '', 'barcode' => '', 'price' => '', 'compare_price' => '', 'stock' => 0, 'weight' => '']]);
     $attributes = old('attributes', $product->exists ? $product->attributes->map(fn($a) => ['name' => $a->attribute_name, 'value' => $a->attribute_value])->toArray() : []);
     $existingImages = $product->exists ? $product->images : collect();
 @endphp
@@ -141,22 +141,28 @@
 
     {{-- Step 3: Variants / Pricing / Discount --}}
     <div x-show="step === 3" x-cloak class="bg-white rounded-xl ring-1 ring-gray-200 p-6 space-y-4 pb-24">
-        <p class="text-sm text-gray-600">Set <strong>Price</strong> and <strong>Compare Price</strong> (original price) to show a discount badge on the storefront.</p>
+        <p class="text-sm text-gray-600">Set <strong>Price</strong> and <strong>Compare Price</strong> (original price) to show a discount badge on the storefront. Set a unique <strong>Barcode</strong> for each variant — POS scanner uses this code.</p>
         <template x-for="(variant, i) in variants" :key="i">
-            <div class="grid grid-cols-2 md:grid-cols-6 gap-3 p-3 bg-gray-50 rounded-lg">
-                <input type="hidden" :name="'variants['+i+'][id]'" :value="variant.id || ''">
-                <input type="text" :name="'variants['+i+'][name]'" x-model="variant.name" placeholder="Variant name" class="input-field">
-                <input type="text" :name="'variants['+i+'][sku]'" x-model="variant.sku" placeholder="SKU" class="input-field">
-                <input type="number" :name="'variants['+i+'][price]'" x-model="variant.price" placeholder="Sale price *" class="input-field" step="0.01" min="0">
-                <input type="number" :name="'variants['+i+'][compare_price]'" x-model="variant.compare_price" placeholder="Compare (was)" class="input-field" step="0.01" min="0">
-                <input type="number" :name="'variants['+i+'][stock]'" x-model="variant.stock" placeholder="Stock" class="input-field">
-                <div class="flex gap-1">
-                    <input type="number" :name="'variants['+i+'][weight]'" x-model="variant.weight" placeholder="Weight (kg)" class="input-field" step="0.01">
-                    <button type="button" @click="variants.splice(i,1)" class="text-red-500 px-2" x-show="variants.length > 1">×</button>
+            <div class="space-y-2 rounded-lg bg-gray-50 p-3">
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                    <input type="hidden" :name="'variants['+i+'][id]'" :value="variant.id || ''">
+                    <input type="text" :name="'variants['+i+'][name]'" x-model="variant.name" placeholder="Variant name" class="input-field">
+                    <input type="text" :name="'variants['+i+'][sku]'" x-model="variant.sku" placeholder="SKU" class="input-field">
+                    <input type="text" :name="'variants['+i+'][barcode]'" x-model="variant.barcode" @input="previewBarcode(i)" placeholder="Barcode (scan code)" class="input-field font-mono" title="Barcode used in POS scanner">
+                    <input type="number" :name="'variants['+i+'][price]'" x-model="variant.price" placeholder="Sale price *" class="input-field" step="0.01" min="0">
+                    <input type="number" :name="'variants['+i+'][compare_price]'" x-model="variant.compare_price" placeholder="Compare (was)" class="input-field" step="0.01" min="0">
+                    <input type="number" :name="'variants['+i+'][stock]'" x-model="variant.stock" placeholder="Stock" class="input-field">
+                    <div class="flex gap-1">
+                        <input type="number" :name="'variants['+i+'][weight]'" x-model="variant.weight" placeholder="Weight (kg)" class="input-field" step="0.01">
+                        <button type="button" @click="variants.splice(i,1)" class="text-red-500 px-2" x-show="variants.length > 1">×</button>
+                    </div>
+                </div>
+                <div class="inline-block rounded border border-slate-200 bg-white p-2" x-show="(variant.barcode || variant.sku)">
+                    <svg :id="'variant-barcode-'+i" class="block"></svg>
                 </div>
             </div>
         </template>
-        <button type="button" @click="variants.push({name:'',sku:'',price:'',compare_price:'',stock:0,weight:''})" class="text-sm text-[#F57C00]">+ Add Variant Row</button>
+        <button type="button" @click="variants.push({name:'',sku:'',barcode:'',price:'',compare_price:'',stock:0,weight:''})" class="text-sm text-[#F57C00]">+ Add Variant Row</button>
     </div>
 
     {{-- Step 4: Attributes --}}
@@ -233,6 +239,7 @@
 @endsection
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script>
 (function waitForProductQuill(attempt) {
     if (window.initProductQuill && typeof Quill !== 'undefined') {

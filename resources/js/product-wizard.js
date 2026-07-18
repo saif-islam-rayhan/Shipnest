@@ -5,11 +5,51 @@ export function registerProductWizard(Alpine, getQuillInstance = () => null) {
         formError: '',
         variants: config.variants?.length
             ? config.variants
-            : [{ name: 'Default', sku: '', price: '', compare_price: '', stock: 0, weight: '' }],
+            : [{ name: 'Default', sku: '', barcode: '', price: '', compare_price: '', stock: 0, weight: '' }],
         attributes: config.attributes?.length ? config.attributes : [],
         existingImages: config.existingImages || [],
         previews: [],
         mainImage: 0,
+        init() {
+            this.$watch('step', (s) => {
+                if (s === 3) {
+                    this.$nextTick(() => this.previewAllBarcodes());
+                }
+            });
+            this.$nextTick(() => this.previewAllBarcodes());
+        },
+        previewBarcode(i) {
+            this.$nextTick(() => {
+                const variant = this.variants[i];
+                const value = (variant?.barcode || variant?.sku || '').toString().trim();
+                const el = document.getElementById('variant-barcode-' + i);
+                if (!el) {
+                    return;
+                }
+                if (!value || typeof window.JsBarcode === 'undefined') {
+                    el.replaceChildren();
+
+                    return;
+                }
+                try {
+                    window.JsBarcode(el, value, {
+                        format: 'CODE128',
+                        width: 1.5,
+                        height: 48,
+                        displayValue: true,
+                        fontSize: 12,
+                        margin: 4,
+                        background: '#ffffff',
+                        lineColor: '#0f172a',
+                    });
+                } catch (e) {
+                    el.replaceChildren();
+                }
+            });
+        },
+        previewAllBarcodes() {
+            this.variants.forEach((_, i) => this.previewBarcode(i));
+        },
         previewFiles(e) {
             Array.from(e.target.files).forEach((file) => {
                 this.previews.push({ url: URL.createObjectURL(file), file });
@@ -34,6 +74,7 @@ export function registerProductWizard(Alpine, getQuillInstance = () => null) {
         },
         fieldValue(form, name) {
             const el = form.querySelector(`[name="${name}"]`);
+
             return (el?.value ?? '').toString().trim();
         },
         validateBeforeSubmit(form) {
@@ -53,6 +94,7 @@ export function registerProductWizard(Alpine, getQuillInstance = () => null) {
 
             const missingPrice = this.variants.some((v) => {
                 const price = v.price;
+
                 return price === '' || price === null || price === undefined || Number.isNaN(Number(price));
             });
             if (!this.variants.length || missingPrice) {
@@ -72,6 +114,7 @@ export function registerProductWizard(Alpine, getQuillInstance = () => null) {
                 this.step = error.step;
                 this.formError = error.message;
                 window.scrollTo({ top: 0, behavior: 'smooth' });
+
                 return false;
             }
 

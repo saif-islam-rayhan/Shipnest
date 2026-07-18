@@ -23,6 +23,7 @@ class ProductReviewFactory extends Factory
             'rating' => fake()->numberBetween(1, 5),
             'title' => fake()->sentence(4),
             'body' => fake()->paragraph(),
+            'images' => null,
             'status' => fake()->randomElement(['pending', 'approved', 'rejected']),
         ];
     }

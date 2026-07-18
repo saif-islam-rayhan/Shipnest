@@ -3,6 +3,7 @@
 return [
     'enabled' => [
         'cod' => env('PAYMENT_COD_ENABLED', true),
+        'cash' => env('PAYMENT_CASH_ENABLED', false),
         'sslcommerz' => env('PAYMENT_SSLCOMMERZ_ENABLED', true),
         'bkash' => env('PAYMENT_BKASH_ENABLED', true),
         'nagad' => env('PAYMENT_NAGAD_ENABLED', true),
